@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 180" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1">
+      <stop stop-color="#d5e8f0"/>
+      <stop offset="1" stop-color="#f2f5ee"/>
+    </linearGradient>
+    <linearGradient id="field" x2="0" y2="1">
+      <stop stop-color="#a9ddaf"/>
+      <stop offset=".42" stop-color="#4fba69"/>
+      <stop offset="1" stop-color="#147344"/>
+    </linearGradient>
+    <linearGradient id="spray" x2="0" y2="1">
+      <stop stop-color="#eef8f3" stop-opacity=".85"/>
+      <stop offset="1" stop-color="#eef8f3" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="tractor" x2="0" y2="1">
+      <stop stop-color="#ffdf9a"/>
+      <stop offset="1" stop-color="#d69749"/>
+    </linearGradient>
+    <pattern id="cropRows" width="72" height="42" patternUnits="userSpaceOnUse" patternTransform="skewX(-18)">
+      <path d="M7 42V5m8 37V14m8 28V4m8 38V12m8 30V2m8 40V15m8 27V6m8 36V13" fill="none" stroke="#e0f6c6" stroke-opacity=".5" stroke-width="2"/>
+      <path d="M4 20l5-8 5 8m5 7 5-9 5 9m5-12 5-8 5 8m5 16 5-9 5 9m5-11 5-8 5 8m5 15 5-9 5 9" fill="none" stroke="#1b7043" stroke-opacity=".58" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1600v180H0z"/>
+  <circle cx="1230" cy="33" r="26" fill="#f3e7c2" opacity=".8"/>
+  <path fill="#94c78f" d="M0 100Q110 69 235 95t230-9q118-40 255 8t238-5q125-52 236 9t216-8q114-32 190 6v70H0z"/>
+  <path fill="#67ad6c" d="M0 116q110-31 215-3t229-8q120-37 241 10t234-7q124-43 243 5t224-8q119-31 214 4v71H0z"/>
+  <path fill="url(#field)" d="M0 105q176-9 321 12t282-8q183-27 352 0t315-1q181-22 330 1v71H0z"/>
+  <path fill="url(#cropRows)" opacity=".8" d="M0 113q176-9 321 12t282-8q183-27 352 0t315-1q181-22 330 1v71H0z"/>
+  <path fill="#349554" d="M0 144q190-22 372 2t375-4q182-25 375 1t478-8v45H0z"/>
+  <path fill="url(#cropRows)" opacity=".78" d="M0 144q190-22 372 2t375-4q182-25 375 1t478-8v45H0z"/>
+  <path d="M0 177q205-24 409 0t406-2q205-20 410 1t375-9" fill="none" stroke="#c1d9a3" stroke-width="5" opacity=".58"/>
+  <g transform="translate(1322 38)">
+    <path d="M40 23h133v5H40z" fill="#364b37"/>
+    <path d="M55 28h3v47h-3zm116 0h3v48h-3z" fill="#374b35"/>
+    <path d="M28 34h17v6H28zm149 0h18v6h-18zM30 48h16v6H30zm149 0h18v6h-18z" fill="#4a5d3b"/>
+    <path d="M60 14q30-20 59-4l11 18H53z" fill="url(#spray)"/>
+    <path d="M69 51h83l8 29H56z" fill="#c9634d"/>
+    <path d="M84 26h40q12 0 17 12v18h-63z" fill="url(#tractor)" stroke="#ae7442" stroke-width="2"/>
+    <path d="M95 31h24q9 0 12 9H95z" fill="#9be0ef"/>
+    <path d="M76 53h64l5 8H72z" fill="#d5a35b"/>
+    <circle cx="77" cy="75" r="17" fill="#26352b"/>
+    <circle cx="77" cy="75" r="8" fill="#9baa83"/>
+    <circle cx="143" cy="77" r="12" fill="#26352b"/>
+    <circle cx="143" cy="77" r="5" fill="#9baa83"/>
+    <path d="M55 53H21l-9-5m9 7-10 5m10-2-8 7M160 53h30l12-5m-12 7 12 5m-12-2 10 7" fill="none" stroke="#283d30" stroke-width="3"/>
+    <path d="M42 25V9h16v16" fill="none" stroke="#52684a" stroke-width="3"/>
+    <path d="M49 8v-6h5v7" fill="#596b4d"/>
+  </g>
+  <path d="M0 174q220-25 420 0m-271-2 150-20m-54 21 145-21m-5 22 145-20m-27 20 145-19m-4 18 143-20m-3 19 150-18m-5 19 150-20m-13 19 157-18" fill="none" stroke="#d5e4bd" stroke-opacity=".58" stroke-width="2"/>
+</svg>

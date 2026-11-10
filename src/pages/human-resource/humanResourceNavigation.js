@@ -1,0 +1,72 @@
+export const humanResourcePages = new Set([
+  'Human Resource Dashboard',
+  'Employee Directory',
+  'Add Employee',
+  'Edit Employee',
+  'Employee Profile',
+  'Employee Documents',
+  'Transfers & Promotions',
+  'Employee Reports',
+  'Daily Attendance',
+  'Mark Attendance',
+  'Attendance Corrections',
+  'Shift Assignments',
+  'Attendance Reports',
+  'Leave Types',
+  'Leave Requests',
+  'Apply for Leave',
+  'Leave Approvals',
+  'Leave Balances',
+  'Leave Reports',
+  'Shift List',
+  'Create Shift',
+  'Employee Rosters',
+  'Shift Reports',
+  'Performance Reviews',
+  'Employee Evaluations',
+  'Goals & KPIs',
+  'Performance Reports',
+])
+
+export const humanResourceGroups = [
+  {
+    title: 'Employee Management',
+    items: [
+      'Employee Directory',
+      'Add Employee',
+      'Employee Profile',
+      'Employee Documents',
+      'Transfers & Promotions',
+      'Employee Reports',
+    ],
+  },
+  {
+    title: 'Attendance',
+    items: [
+      'Daily Attendance',
+      'Mark Attendance',
+      'Attendance Corrections',
+      'Shift Assignments',
+      'Attendance Reports',
+    ],
+  },
+  {
+    title: 'Leave Management',
+    items: [
+      'Leave Types',
+      'Leave Requests',
+      'Apply for Leave',
+      'Leave Approvals',
+      'Leave Balances',
+      'Leave Reports',
+    ],
+  },
+  {
+    title: 'Shifts & Scheduling',
+    items: ['Shift List', 'Create Shift', 'Employee Rosters', 'Shift Reports'],
+  },
+  {
+    title: 'Performance Management',
+    items: ['Performance Reviews', 'Employee Evaluations', 'Goals & KPIs', 'Performance Reports'],
+  },
+]
