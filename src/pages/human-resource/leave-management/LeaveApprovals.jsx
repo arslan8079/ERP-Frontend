@@ -34,7 +34,11 @@ export default function LeaveApprovalsPage({ data, employeeName, onApprove }) {
         <Stat
           icon={CheckCircle2}
           label="Approved"
-          value={data.leaveRequests.filter((item) => item.status === 'Approved').length}
+          value={
+            data.leaveRequests.filter(
+              (item) => item.status === 'Approved' && item.requestType !== 'Withdrawal',
+            ).length
+          }
         />
         <Stat
           icon={X}

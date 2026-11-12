@@ -6,6 +6,7 @@ const {
   today,
   formatDate,
   daysBetween,
+  leaveBalance,
   PageHeader,
   Button,
   Stat,
@@ -43,22 +44,16 @@ export default function ApplyLeavePage({
     if (!form.reason.trim()) return onNotify('Add a reason for the leave request.')
     const leaveType = activeTypes.find((item) => item.id === form.typeId)
     if (!leaveType) return onNotify('Choose an active leave category.')
-    const approvedDays = data.leaveRequests
-      .filter(
-        (item) =>
-          item.employeeId === form.employeeId &&
-          item.typeId === form.typeId &&
-          item.status === 'Approved',
-      )
-      .reduce((sum, item) => sum + item.days, 0)
-    if (approvedDays + count > leaveType.days)
+    const available = leaveBalance(data, form.employeeId, form.typeId, form.startDate)
+    if (count > available)
       return onNotify(
-        `This request exceeds the ${leaveType.name} balance of ${Math.max(0, leaveType.days - approvedDays)} day(s).`,
+        `This request exceeds the ${leaveType.name} balance of ${Math.max(0, available)} day(s).`,
       )
     const overlaps = data.leaveRequests.some(
       (item) =>
         item.employeeId === form.employeeId &&
         ['Pending', 'Approved'].includes(item.status) &&
+        item.requestType !== 'Withdrawal' &&
         form.startDate <= item.endDate &&
         form.endDate >= item.startDate,
     )

@@ -75,7 +75,6 @@ import {
   Users,
   Wallet,
   X,
-  Zap,
 } from 'lucide-react'
 import fieldBanner from './field-banner.svg'
 import { administrationGroups } from './pages/administration/administrationNavigation.js'
@@ -378,7 +377,7 @@ function App() {
   const [branches, setBranches] = useState(initialBranches)
   const [selectedBranchCode, setSelectedBranchCode] = useState(initialBranches[0].code)
   const [departments, setDepartments] = useState(initialDepartments)
-  const [employees, setEmployees] = useState(initialEmployees)
+  const [employees, setEmployees] = useState(loadEmployees)
   const [selectedDepartmentCode, setSelectedDepartmentCode] = useState(initialDepartments[0].code)
   const [accessData, setAccessData] = useState(loadAccessData)
   const [approvalData, setApprovalData] = useState(loadApprovalData)
@@ -1449,51 +1448,36 @@ function Dashboard({ onAction, approvalData, users }) {
     month: 'long',
     year: 'numeric',
   }).format(new Date())
-  const adminActions = [
-    { label: 'Add Company', icon: Building2, color: 'blue' },
-    { label: 'Add Branch', icon: GitBranch, color: 'purple' },
-    { label: 'Create User', icon: UserPlus, color: 'green' },
-    { label: 'Manage Roles', icon: KeyRound, color: 'orange' },
-    { label: 'Approval Setup', icon: FileCheck2, color: 'blue' },
-    { label: 'System Backup', icon: Database, color: 'orange' },
-    { label: 'System Settings', icon: Settings, color: 'purple' },
+  const shortcuts = [
+    { label: 'Add Company', icon: Building2 },
+    { label: 'Add Branch', icon: GitBranch },
+    { label: 'Create User', icon: UserPlus },
+    { label: 'Review Approvals', icon: ClipboardCheck, page: 'Approval Queue' },
   ]
 
   return (
     <div className="dashboard-scroll admin-dashboard">
       <header className="admin-welcome">
-        <img src={fieldBanner} alt="" />
-        <div className="admin-welcome-shade" />
         <div className="admin-welcome-copy">
-          <span className="admin-welcome-kicker">
-            <Leaf size={13} />
-            GREENFIELD ERP <i /> ADMINISTRATION
-          </span>
+          <span className="admin-welcome-kicker">Administration overview</span>
           <h1>
             {greeting}, {administrator?.name || 'Admin'}
           </h1>
-          <p>Your organization’s operational snapshot for today.</p>
+          <p>Your organization’s key updates and actions.</p>
         </div>
         <div className="admin-welcome-actions">
-          <span className="admin-live-pill">
-            <i />
-            Live overview
-          </span>
           <span className="admin-date-pill">
             <CalendarDays size={14} />
             {todayLabel}
-          </span>{' '}
-          <button
-            type="button"
-            aria-label="Review approvals"
-            onClick={() => onAction('Approval Queue')}
-          >
+          </span>
+          <button type="button" onClick={() => onAction('Approval Queue')}>
             <ClipboardCheck size={15} />
             Review approvals
             <ArrowRight size={14} />
           </button>
         </div>
       </header>
+
       <section className="admin-kpis" aria-label="System overview">
         {kpis.map(({ label, value, change, icon: Icon, color, page }) => (
           <button
@@ -1516,59 +1500,22 @@ function Dashboard({ onAction, approvalData, users }) {
         ))}
       </section>
 
-      <div className="admin-middle">
-        <section className="panel admin-chart-panel">
-          <h2 className="dashboard-panel-heading">
-            <span className="dashboard-heading-icon usage-heading-icon">
-              <Activity size={17} />
-            </span>
-            <span className="dashboard-heading-copy">
-              <b>Module Usage</b>
-              <small>Workload mix · last 30 days</small>
-            </span>
-            <span className="dashboard-heading-badge">30D</span>
-          </h2>
-          <ModuleUsageChart />
-        </section>
-        <section className="panel admin-chart-panel">
-          <h2 className="dashboard-panel-heading">
-            <span className="dashboard-heading-icon trend-heading-icon">
-              <Activity size={17} />
-            </span>
-            <span className="dashboard-heading-copy">
-              <b>Approval Trend</b>
-              <small>Decisions · last 6 months</small>
-            </span>
-            <span className="chart-legend">
-              <i className="approved-dot" />
-              Approved <i className="rejected-dot" />
-              Rejected
-            </span>
-          </h2>
-          <ApprovalTrendChart />
-        </section>
-        <section className="panel admin-quick-panel">
-          <h2 className="dashboard-panel-heading">
-            <span className="dashboard-heading-icon quick-heading-icon">
-              <Zap size={17} />
-            </span>
-            <span className="dashboard-heading-copy">
-              <b>Quick Actions</b>
-              <small>Common admin tasks</small>
-            </span>
-          </h2>
-          <div className="admin-quick-grid">
-            {adminActions.map(({ label, icon: Icon, color }) => (
-              <button className="admin-quick-action" key={label} onClick={() => onAction(label)}>
-                <Icon size={25} className={`icon-${color}`} strokeWidth={1.9} />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      </div>
+      <section className="admin-shortcuts" aria-label="Common admin tasks">
+        {shortcuts.map(({ label, icon: Icon, page }) => (
+          <button
+            type="button"
+            className="admin-shortcut"
+            key={label}
+            onClick={() => onAction(page || label)}
+          >
+            <Icon size={17} />
+            <span>{label}</span>
+            <ArrowRight size={14} />
+          </button>
+        ))}
+      </section>
 
-      <div className="admin-bottom">
+      <div className="admin-clean-grid">
         <section className="panel admin-data-panel admin-activity-panel">
           <h2>
             <span className="dashboard-heading-icon activity-heading-icon">
@@ -1607,197 +1554,78 @@ function Dashboard({ onAction, approvalData, users }) {
             </table>
           </div>
         </section>
-        <section className="panel admin-data-panel admin-pending-panel">
-          <h2>
-            <span className="dashboard-heading-icon approval-heading-icon">
-              <ClipboardCheck size={16} />
-            </span>
-            <span className="dashboard-heading-copy">
-              <b>Pending Approvals</b>
-              <small>{pendingRequests.length} requests are waiting</small>
-            </span>
-            <button className="view-all" onClick={() => onAction('Approval Queue')}>
-              View All <ArrowRight size={13} />
-            </button>
-          </h2>
-          <div className="admin-table-wrap">
-            <table className="admin-table approval-table">
-              <thead>
-                <tr>
-                  <th>Ref. No.</th>
-                  <th>Type</th>
-                  <th>Requested By</th>
-                  <th>Date</th>
-                  <th>Amount</th>
-                  <th>Age</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingRequests.slice(0, 5).map((request) => {
-                  const user = users.find((item) => item.id === request.requestedById)
-                  return (
-                    <tr key={request.id}>
-                      <td>{request.reference}</td>
-                      <td>{request.documentType}</td>
-                      <td>{user?.name || 'Unknown'}</td>
-                      <td>{approvalDisplayDate(request.submittedAt)}</td>
-                      <td>{approvalMoney(request.amount)}</td>
-                      <td>
-                        <span className="age-pill">{approvalAge(request.submittedAt)}</span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <section className="panel admin-data-panel admin-alert-panel">
-          <h2>
-            <span className="dashboard-heading-icon critical-heading-icon">
-              <AlertTriangle size={16} />
-            </span>
-            <span className="dashboard-heading-copy">
-              <b>Critical Alerts</b>
-              <small>{adminAlerts.length} items need attention</small>
-            </span>
-            <button className="view-all" onClick={() => onAction('Inventory Dashboard')}>
-              View All <ArrowRight size={13} />
-            </button>
-          </h2>
-          <div className="alert-list admin-alert-list">
-            {adminAlerts.map(({ icon: Icon, color, text, page }) => (
-              <button
-                className="alert-row"
-                key={text}
-                onClick={() => onAction(page)}
-                title={`Open ${page}`}
-              >
-                <span className={`alert-icon ${color}`}>
-                  <Icon size={16} />
-                </span>
-                <span>{text}</span>
-                <ChevronRight size={15} />
+
+        <div className="admin-clean-side">
+          <section className="panel admin-data-panel admin-pending-panel">
+            <h2>
+              <span className="dashboard-heading-icon approval-heading-icon">
+                <ClipboardCheck size={16} />
+              </span>
+              <span className="dashboard-heading-copy">
+                <b>Pending Approvals</b>
+                <small>{pendingRequests.length} requests are waiting</small>
+              </span>
+              <button className="view-all" onClick={() => onAction('Approval Queue')}>
+                View All <ArrowRight size={13} />
               </button>
-            ))}
-          </div>
-        </section>
-      </div>
-    </div>
-  )
-}
+            </h2>
+            <div className="admin-approval-list">
+              {pendingRequests.slice(0, 4).map((request) => {
+                const user = users.find((item) => item.id === request.requestedById)
+                return (
+                  <div className="admin-approval-row" key={request.id}>
+                    <span>
+                      <b>{request.reference}</b>
+                      <small>
+                        {request.documentType} · {user?.name || 'Unknown'}
+                      </small>
+                    </span>
+                    <span>
+                      <b>{approvalMoney(request.amount)}</b>
+                      <small>{approvalAge(request.submittedAt)}</small>
+                    </span>
+                  </div>
+                )
+              })}
+              {!pendingRequests.length && (
+                <p className="admin-clean-empty">No pending approvals.</p>
+              )}
+            </div>
+          </section>
 
-function ZapIcon() {
-  return <Activity size={17} className="quick-heading-icon" />
-}
-
-function ModuleUsageChart() {
-  const modules = [
-    ['Inventory', 28],
-    ['Sales', 20],
-    ['Production', 16],
-    ['Purchase', 12],
-    ['Finance', 10],
-    ['Master Data', 7],
-    ['Reports', 5],
-    ['Administration', 2],
-  ]
-  return (
-    <div className="usage-chart">
-      {modules.map(([name, value]) => (
-        <div className="usage-row" key={name}>
-          <span>{name}</span>
-          <div className="usage-track">
-            <i style={{ width: `${(value / 30) * 100}%` }} />
-          </div>
-          <b>{value}%</b>
+          <section className="panel admin-data-panel admin-alert-panel">
+            <h2>
+              <span className="dashboard-heading-icon critical-heading-icon">
+                <AlertTriangle size={16} />
+              </span>
+              <span className="dashboard-heading-copy">
+                <b>Needs Attention</b>
+                <small>{adminAlerts.length} items need attention</small>
+              </span>
+              <button className="view-all" onClick={() => onAction('Inventory Dashboard')}>
+                View All <ArrowRight size={13} />
+              </button>
+            </h2>
+            <div className="alert-list admin-alert-list">
+              {adminAlerts.map(({ icon: Icon, color, text, page }) => (
+                <button
+                  type="button"
+                  className="alert-row"
+                  key={text}
+                  onClick={() => onAction(page)}
+                  title={`Open ${page}`}
+                >
+                  <span className={`alert-icon ${color}`}>
+                    <Icon size={16} />
+                  </span>
+                  <span>{text}</span>
+                  <ChevronRight size={15} />
+                </button>
+              ))}
+            </div>
+          </section>
         </div>
-      ))}
-    </div>
-  )
-}
-
-function ApprovalTrendChart() {
-  return (
-    <div className="trend-chart">
-      <div className="trend-axis">
-        <span>120</span>
-        <span>90</span>
-        <span>60</span>
-        <span>30</span>
-        <span>0</span>
       </div>
-      <svg
-        viewBox="0 0 360 142"
-        role="img"
-        aria-label="Approved items rise from 48 in July to 104 in December, rejected items remain below 15"
-      >
-        <g className="trend-grid">
-          <path d="M0 13H360M0 43H360M0 73H360M0 103H360M0 133H360" />
-        </g>
-        <path
-          className="trend-fill"
-          d="M18 77 L82 72 L146 57 L210 51 L274 33 L338 17 L338 133 L18 133 Z"
-        />
-        <polyline
-          className="trend-line approved"
-          points="18,77 82,72 146,57 210,51 274,33 338,17"
-        />
-        <polyline
-          className="trend-line rejected"
-          points="18,119 82,117 146,114 210,111 274,107 338,109"
-        />
-        {[
-          [18, 77, '48'],
-          [82, 72, '52'],
-          [146, 57, '67'],
-          [210, 51, '72'],
-          [274, 33, '89'],
-          [338, 17, '104'],
-        ].map(([x, y, value]) => (
-          <g key={value}>
-            <circle className="trend-point approved-point" cx={x} cy={y} r="3.5" />
-            <text x={x} y={Number(y) - 8} textAnchor="middle">
-              {value}
-            </text>
-          </g>
-        ))}
-        {[
-          [18, 119, '6'],
-          [82, 117, '8'],
-          [146, 114, '9'],
-          [210, 111, '11'],
-          [274, 107, '14'],
-          [338, 109, '12'],
-        ].map(([x, y, value]) => (
-          <g key={value}>
-            <circle className="trend-point rejected-point" cx={x} cy={y} r="3.2" />
-            <text x={x} y={Number(y) - 7} textAnchor="middle">
-              {value}
-            </text>
-          </g>
-        ))}
-        <g className="trend-months">
-          <text x="18" y="141" textAnchor="middle">
-            Jul
-          </text>
-          <text x="82" y="141" textAnchor="middle">
-            Aug
-          </text>
-          <text x="146" y="141" textAnchor="middle">
-            Sep
-          </text>
-          <text x="210" y="141" textAnchor="middle">
-            Oct
-          </text>
-          <text x="274" y="141" textAnchor="middle">
-            Nov
-          </text>
-          <text x="338" y="141" textAnchor="middle">
-            Dec
-          </text>
-        </g>
-      </svg>
     </div>
   )
 }
@@ -2448,6 +2276,18 @@ const initialEmployees = [
     status: 'Active',
   },
 ]
+
+function loadEmployees() {
+  try {
+    const saved = window.localStorage.getItem('greenfield-human-resource-v1')
+    if (!saved) return initialEmployees
+    const parsed = JSON.parse(saved)
+    return Array.isArray(parsed.employees) ? parsed.employees : initialEmployees
+  } catch (error) {
+    console.error('Unable to load employee records:', error)
+    return initialEmployees
+  }
+}
 
 const initialDepartments = [
   {

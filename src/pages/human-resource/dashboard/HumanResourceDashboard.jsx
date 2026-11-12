@@ -43,6 +43,7 @@ export default function HRDashboard({ data, employees, departmentName, onNavigat
     'Employee Directory',
     'Daily Attendance',
     'Leave Approvals',
+    'Employee Exit & Clearance',
     'Employee Rosters',
   ]
   return (

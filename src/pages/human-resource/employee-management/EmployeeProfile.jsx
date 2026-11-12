@@ -1,4 +1,4 @@
-import { BadgeCheck, FileText, Pencil, TrendingUp, Users } from 'lucide-react'
+import { BadgeCheck, ClipboardCheck, FileText, Pencil, TrendingUp, Users } from 'lucide-react'
 import * as Shared from '../shared'
 
 const {
@@ -17,6 +17,7 @@ const {
 } = Shared
 
 export default function EmployeeProfile({
+  data,
   selectedEmployee: employee,
   selectEmployee,
   employees,
@@ -25,6 +26,7 @@ export default function EmployeeProfile({
   onNavigate,
 }) {
   if (!employee) return <EmptyState text="Add an employee before opening a profile." />
+  const exitCase = (data.exitCases || []).find((item) => item.employeeId === employee.id)
   return (
     <>
       <PageHeader
@@ -77,6 +79,10 @@ export default function EmployeeProfile({
             <TrendingUp size={15} />
             Career change
           </Button>
+          <Button kind="secondary" onClick={() => onNavigate('Employee Exit & Clearance')}>
+            <ClipboardCheck size={15} />
+            Exit & clearance
+          </Button>
         </div>
       </section>
       <div className="hr-profile-grid">
@@ -128,6 +134,24 @@ export default function EmployeeProfile({
               <dt>Joining date</dt>
               <dd>{formatDate(employee.hireDate)}</dd>
             </div>
+            <div>
+              <dt>Employment status</dt>
+              <dd>{employee.status}</dd>
+            </div>
+            {employee.employmentEndDate && (
+              <div>
+                <dt>Effective end date</dt>
+                <dd>{formatDate(employee.employmentEndDate)}</dd>
+              </div>
+            )}
+            {exitCase && (
+              <div>
+                <dt>Exit case</dt>
+                <dd>
+                  {exitCase.id} · {exitCase.status}
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Reporting manager</dt>
               <dd>{employee.manager}</dd>

@@ -23,18 +23,15 @@ const {
   Callout,
   ExportButton,
   downloadCsv,
+  batchOutstandingAmount,
+  employeeOutstandingAmount,
 } = Shared
 
 export default function PendingSalariesPage({ data, periodName, onNavigate }) {
-  const batches = data.batches.filter((item) => item.status === 'Finalized')
-  const due = batches.reduce((sum, item) => sum + item.net, 0)
-  const paymentStatus = (batch) => {
-    const count = data.payments.filter((payment) => payment.batchId === batch.id).length
-    if (!count) return 'Unpaid'
-    return count < batch.employeeCount
-      ? `${count} instruction(s) recorded · incomplete`
-      : 'Pending bank confirmation'
-  }
+  const batches = data.batches.filter(
+    (item) => item.status === 'Finalized' && batchOutstandingAmount(item, data.payments) > 0,
+  )
+  const due = batches.reduce((sum, item) => sum + batchOutstandingAmount(item, data.payments), 0)
   return (
     <>
       <PageHeader
@@ -59,7 +56,14 @@ export default function PendingSalariesPage({ data, periodName, onNavigate }) {
         <Stat
           icon={Users}
           label="Employees to pay"
-          value={batches.reduce((sum, item) => sum + item.employeeCount, 0)}
+          value={batches.reduce(
+            (sum, batch) =>
+              sum +
+              batch.payslips.filter(
+                (slip) => employeeOutstandingAmount(batch, slip, data.payments) > 0,
+              ).length,
+            0,
+          )}
           tone="blue"
         />
       </div>
@@ -69,7 +73,7 @@ export default function PendingSalariesPage({ data, periodName, onNavigate }) {
             'Batch',
             'Pay period',
             'Employees',
-            'Net payable',
+            'Outstanding balance',
             'Finalized',
             'Payment status',
             '',
@@ -83,15 +87,47 @@ export default function PendingSalariesPage({ data, periodName, onNavigate }) {
               <td>{periodName(batch.periodId)}</td>
               <td>{batch.employeeCount}</td>
               <td>
-                <b>{money(batch.net)}</b>
+                <b>{money(batchOutstandingAmount(batch, data.payments))}</b>
               </td>
               <td>{batch.finalizedAt}</td>
               <td>
-                <Status>{paymentStatus(batch)}</Status>
+                <Status>
+                  {data.payments.some(
+                    (payment) =>
+                      payment.batchId === batch.id &&
+                      payment.status === 'Pending bank confirmation',
+                  )
+                    ? 'Instruction pending'
+                    : data.payments.some(
+                          (payment) => payment.batchId === batch.id && payment.status === 'Failed',
+                        )
+                      ? 'Failed payment · retry due'
+                      : 'Unpaid / partial'}
+                </Status>
               </td>
               <td>
-                <button className="pr-link" onClick={() => onNavigate('Process Payments')}>
-                  Record instructions <ChevronRight size={14} />
+                <button
+                  className="pr-link"
+                  onClick={() =>
+                    onNavigate(
+                      data.payments.some(
+                        (payment) =>
+                          payment.batchId === batch.id &&
+                          payment.status === 'Pending bank confirmation',
+                      )
+                        ? 'Payment Records'
+                        : 'Process Payments',
+                    )
+                  }
+                >
+                  {data.payments.some(
+                    (payment) =>
+                      payment.batchId === batch.id &&
+                      payment.status === 'Pending bank confirmation',
+                  )
+                    ? 'Record outcomes'
+                    : 'Record / retry instructions'}{' '}
+                  <ChevronRight size={14} />
                 </button>
               </td>
             </tr>

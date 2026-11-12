@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { ArrowDownLeft, Check, ClipboardList, Clock3, PackagePlus, ShieldCheck } from 'lucide-react'
 import { Button, Card, Field, Table } from '../InventoryComponents'
 
 export default function StockInGRNPage({ context }) {
+  const [purchaseOrderId, setPurchaseOrderId] = useState('')
   const {
     onNavigate,
     data,
+    procurementData,
     receivingWarehouseId,
     setReceivingWarehouseId,
     issueProductId,
@@ -19,8 +22,8 @@ export default function StockInGRNPage({ context }) {
     day,
   } = context
   const page = 'Stock In (GRN)'
-
   const opening = page === 'Stock Opening'
+  const selectedOrder = procurementData.purchaseOrders.find((item) => item.id === purchaseOrderId)
 
   return (
     <div className="inv-page">
@@ -31,17 +34,44 @@ export default function StockInGRNPage({ context }) {
           : 'Receive supplier stock into quarantine; record the receipt observation separately from inspection.',
         opening ? ClipboardList : ArrowDownLeft,
       )}
-      <form className="inv-form-card" onSubmit={(event) => saveBatchReceipt(event, opening)}>
+      <form
+        className="inv-form-card"
+        onSubmit={(event) => {
+          if (saveBatchReceipt(event, opening)) setPurchaseOrderId('')
+        }}
+      >
         <h2>
           {opening ? <ClipboardList size={18} /> : <PackagePlus size={18} />}
           {opening ? 'Opening balance' : 'Goods receipt · receipt condition'}
         </h2>
         <div className="inv-form-grid">
+          <Field label="Purchase order (optional)">
+            <select
+              name="purchaseOrderId"
+              value={purchaseOrderId}
+              onChange={(event) => {
+                const nextId = event.target.value
+                setPurchaseOrderId(nextId)
+                const order = procurementData.purchaseOrders.find((item) => item.id === nextId)
+                if (order) setIssueProductId(order.productId)
+              }}
+            >
+              <option value="">Unlinked supplier receipt</option>
+              {procurementData.purchaseOrders.map((order) => (
+                <option key={order.id} value={order.id}>
+                  {order.id} · {order.supplier}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Pesticide product" required>
             <select
               name="productId"
               value={issueProductId}
-              onChange={(event) => setIssueProductId(event.target.value)}
+              onChange={(event) => {
+                setIssueProductId(event.target.value)
+                setPurchaseOrderId('')
+              }}
             >
               {productOptions}
             </select>
@@ -77,12 +107,26 @@ export default function StockInGRNPage({ context }) {
             <input name="qty" type="number" min="0.01" step="any" required />
           </Field>
           <Field label="Unit cost · PKR" required>
-            <input name="unitCost" type="number" min="0.01" step="any" required />
+            <input
+              key={purchaseOrderId}
+              name="unitCost"
+              type="number"
+              min="0.01"
+              step="any"
+              defaultValue={selectedOrder?.unitPrice}
+              required
+            />
           </Field>
           {!opening && (
             <>
               <Field label="Supplier / manufacturer">
-                <input name="supplier" placeholder="Approved supplier" required />
+                <input
+                  key={purchaseOrderId}
+                  name="supplier"
+                  placeholder="Approved supplier"
+                  defaultValue={selectedOrder?.supplier}
+                  required
+                />
               </Field>
               <Field label="Receipt condition · intake observation only" required>
                 <select name="receiptCondition" defaultValue="" required>
@@ -111,8 +155,9 @@ export default function StockInGRNPage({ context }) {
           )}
           <p className="inv-form-hint">
             <ShieldCheck size={16} />
-            Expired, future-manufactured, unregistered or quarantined lots are blocked from issue.
-            Stock is recorded by product, batch, warehouse, bin, and expiry.
+            {selectedOrder
+              ? `Receipt will be linked to ${selectedOrder.id}; quantity and amount variances remain visible for review.`
+              : 'Expired, future-manufactured, unregistered or quarantined lots are blocked from issue. Stock is recorded by product, batch, warehouse, bin, and expiry.'}
           </p>
         </div>
         <div className="inv-form-actions">

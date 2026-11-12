@@ -34,9 +34,9 @@ export default function SalarySlipsPage({ data, employees, periodName, onNotify 
         ['Finalized', 'Paid'].includes(batch.status) &&
         batch.payslips.some((slip) => slip.employeeId === employeeId),
     )
-    .sort((a, b) => b.periodId.localeCompare(a.periodId))
-  const [periodId, setPeriodId] = useState('')
-  const batch = employeeBatches.find((item) => item.periodId === periodId) || employeeBatches[0]
+    .sort((a, b) => b.periodId.localeCompare(a.periodId) || b.id.localeCompare(a.id))
+  const [batchId, setBatchId] = useState('')
+  const batch = employeeBatches.find((item) => item.id === batchId) || employeeBatches[0]
   const slip = batch?.payslips.find((item) => item.employeeId === employeeId)
   const exportSlip = () => {
     if (!slip || !batch)
@@ -53,6 +53,7 @@ export default function SalarySlipsPage({ data, employees, periodName, onNotify 
         ['Gross earnings', slip.gross],
         ['Total deductions', slip.totalDeductions],
         ['Net salary', slip.net],
+        ...(slip.recoveryDue ? [['Recovery due', slip.recoveryDue]] : []),
       ],
       onNotify,
     )
@@ -76,7 +77,7 @@ export default function SalarySlipsPage({ data, employees, periodName, onNotify 
             value={employeeId}
             onChange={(event) => {
               setEmployeeId(event.target.value)
-              setPeriodId('')
+              setBatchId('')
             }}
           >
             {employees.map((item) => (
@@ -86,14 +87,15 @@ export default function SalarySlipsPage({ data, employees, periodName, onNotify 
             ))}
           </select>
         </Field>
-        <Field label="Payroll period">
+        <Field label="Payroll run">
           <select
-            value={periodId || batch?.periodId || ''}
-            onChange={(event) => setPeriodId(event.target.value)}
+            value={batchId || batch?.id || ''}
+            onChange={(event) => setBatchId(event.target.value)}
           >
             {employeeBatches.map((item) => (
-              <option key={item.periodId} value={item.periodId}>
-                {periodName(item.periodId)}
+              <option key={item.id} value={item.id}>
+                {periodName(item.periodId)} · {item.id}
+                {item.type === 'Adjustment' ? ' · Adjustment' : ''}
               </option>
             ))}
           </select>

@@ -43,6 +43,8 @@ import ExpiryReportPage from './inventory-reports/ExpiryReportPage'
 import InventoryDashboardPage from './dashboard/InventoryDashboardPage'
 import './Inventory.css'
 import { inventoryStorageKey } from './inventoryStock'
+import PurchaseOrdersPage from './procurement/PurchaseOrdersPage'
+import { readProcurementData, writeProcurementData } from '../procurement/procurementStore'
 
 const inventoryScreens = {
   'Add Product': AddProductPage,
@@ -57,6 +59,7 @@ const inventoryScreens = {
   'Batch Stock': BatchStockPage,
   'Stock Opening': StockOpeningPage,
   'Stock In (GRN)': StockInGRNPage,
+  'Purchase Orders': PurchaseOrdersPage,
   'Stock Out (Issue)': StockOutIssuePage,
   'Stock Transfer': StockTransferPage,
   'Stock Adjustments': StockAdjustmentsPage,
@@ -384,6 +387,7 @@ function exportCsv(name, headers, rows, notify) {
 
 function InventoryModule({ page, onNotify, onNavigate }) {
   const [data, setData] = useState(loadData)
+  const [procurementData, setProcurementData] = useState(readProcurementData)
   const [search, setSearch] = useState('')
   const [editingProductId, setEditingProductId] = useState('')
   const [editingWarehouseId, setEditingWarehouseId] = useState('')
@@ -394,6 +398,7 @@ function InventoryModule({ page, onNotify, onNavigate }) {
   const [newCategory, setNewCategory] = useState('')
   const [newUnit, setNewUnit] = useState({ name: '', symbol: '', type: 'Volume' })
   const [countValues, setCountValues] = useState({})
+  const [activeCountId, setActiveCountId] = useState('')
   const [receivingWarehouseId, setReceivingWarehouseId] = useState(warehousesSeed[0].id)
   const [batchWarehouseId, setBatchWarehouseId] = useState(warehousesSeed[0].id)
   const [issueProductId, setIssueProductId] = useState(initials[0].id)
@@ -404,6 +409,7 @@ function InventoryModule({ page, onNotify, onNavigate }) {
   const editingWarehouse = data.warehouses.find((item) => item.id === editingWarehouseId)
   const editingLocation = data.locations.find((item) => item.id === editingLocationId)
   const editingBatch = data.batches.find((item) => item.id === editingBatchId)
+  const activeCount = data.counts.find((item) => item.id === activeCountId && item.status === 'In progress')
   const product = (id) => data.products.find((item) => item.id === id)
   const warehouse = (id) => data.warehouses.find((item) => item.id === id)
   const totalFor = (id) =>
@@ -434,6 +440,51 @@ function InventoryModule({ page, onNotify, onNavigate }) {
       onNotify('Inventory changes could not be saved. Check browser storage and try again.')
       return false
     }
+  }
+  const saveProcurement = (updater, message) => {
+    const next =
+      typeof updater === 'function' ? updater(procurementData) : { ...procurementData, ...updater }
+    try {
+      writeProcurementData(next)
+      setProcurementData(next)
+      if (message) onNotify(message)
+      return true
+    } catch (error) {
+      console.error('Unable to save procurement data:', error)
+      onNotify('Purchase order changes could not be saved. Check browser storage and try again.')
+      return false
+    }
+  }
+  const createPurchaseOrder = (values) => {
+    const item = product(values.productId)
+    if (
+      !values.supplier ||
+      !item ||
+      item.status === 'Inactive' ||
+      !Number.isFinite(values.quantity) ||
+      values.quantity <= 0 ||
+      !Number.isFinite(values.unitPrice) ||
+      values.unitPrice <= 0
+    ) {
+      onNotify('Choose an active product, supplier, positive quantity, and unit price.')
+      return false
+    }
+    const expectedAmount = Math.round(values.quantity * values.unitPrice * 100) / 100
+    const order = {
+      id: makeId('PO'),
+      date: day(),
+      supplier: values.supplier,
+      productId: item.id,
+      productName: item.name,
+      unit: item.unit,
+      quantity: values.quantity,
+      unitPrice: values.unitPrice,
+      expectedAmount,
+    }
+    return saveProcurement(
+      { ...procurementData, purchaseOrders: [order, ...procurementData.purchaseOrders] },
+      `${order.id} saved for ${order.supplier}.`,
+    )
   }
   const recordMovement = (next, movement) => ({
     ...next,
@@ -857,6 +908,9 @@ function InventoryModule({ page, onNotify, onNavigate }) {
   const saveBatchReceipt = (event, opening = false) => {
     event.preventDefault()
     const values = Object.fromEntries(new FormData(event.currentTarget))
+    const purchaseOrder = procurementData.purchaseOrders.find(
+      (order) => order.id === values.purchaseOrderId,
+    )
     const quantity = Number(values.qty)
     const unitCost = Number(values.unitCost)
     const item = product(values.productId)
@@ -868,6 +922,29 @@ function InventoryModule({ page, onNotify, onNavigate }) {
       unitCost <= 0
     )
       return onNotify('Select a product and enter positive quantity and unit cost.')
+    if (values.purchaseOrderId && (!purchaseOrder || opening))
+      return onNotify('Select a valid purchase order for this supplier receipt.')
+    if (
+      purchaseOrder &&
+      (purchaseOrder.productId !== values.productId ||
+        purchaseOrder.supplier.trim().toLowerCase() !==
+          String(values.supplier || '')
+            .trim()
+            .toLowerCase())
+    )
+      return onNotify('The receipt product and supplier must match the selected purchase order.')
+    const receiptReference = String(values.reference || '')
+      .trim()
+      .toUpperCase()
+    if (
+      !opening &&
+      data.movements.some(
+        (movement) =>
+          movement.type === 'GRN' &&
+          String(movement.reference || '').toUpperCase() === receiptReference,
+      )
+    )
+      return onNotify('That GRN reference is already recorded. Enter a unique receipt reference.')
     if (
       values.manufactured > day() ||
       values.expiry <= values.manufactured ||
@@ -966,19 +1043,22 @@ function InventoryModule({ page, onNotify, onNavigate }) {
         warehouseId: values.warehouseId,
         qty: quantity,
         unitCost,
-        reference: values.reference.trim().toUpperCase(),
+        reference: receiptReference,
+        purchaseOrderId: purchaseOrder?.id || '',
         note: opening
           ? `Opening balance · ${values.note || 'Verified stock take'}`
-          : `Received from ${values.supplier || 'supplier'} · receipt condition: ${values.receiptCondition} · quarantined pending QC`,
+          : `Received from ${values.supplier || 'supplier'}${purchaseOrder ? ` · PO ${purchaseOrder.id}` : ''} · receipt condition: ${values.receiptCondition} · quarantined pending QC`,
       },
     )
-    if (
-      save(
-        next,
-        `${qtyLabel} recorded against batch ${values.batchNo.toUpperCase()}${opening ? '.' : ' · quarantined pending QC inspection.'}`,
-      )
+    const saved = save(
+      next,
+      `${qtyLabel} recorded against batch ${values.batchNo.toUpperCase()}${opening ? '.' : ' · quarantined pending QC inspection.'}`,
     )
+    if (saved) {
       event.currentTarget.reset()
+      return true
+    }
+    return false
   }
   const submitQualityInspection = (event) => {
     event.preventDefault()
@@ -1300,35 +1380,119 @@ function InventoryModule({ page, onNotify, onNavigate }) {
     )
       event.currentTarget.reset()
   }
-  const submitPhysicalCount = (event) => {
-    event.preventDefault()
-    const values = Object.fromEntries(new FormData(event.currentTarget))
-    const selected = data.batches.filter((batch) => batch.warehouseId === values.warehouseId)
-    if (!selected.length)
+  const startPhysicalCount = (warehouseId, recountOf = '') => {
+    const batches = data.batches.filter((batch) => batch.warehouseId === warehouseId)
+    if (!batches.length)
       return onNotify('No registered batches are available to count at this warehouse.')
-    const missing = selected.find(
-      (batch) =>
-        countValues[batch.id] === undefined ||
-        countValues[batch.id] === '' ||
-        !Number.isFinite(Number(countValues[batch.id])) ||
-        Number(countValues[batch.id]) < 0,
+    if (
+      recountOf &&
+      data.approvals.some(
+        (approval) => approval.countId === recountOf && approval.status === 'Pending',
+      )
     )
-    if (missing) return onNotify(`Enter a valid physical count for batch ${missing.batchNo}.`)
-    const countId = makeId('CNT')
+      return onNotify('Resolve all pending variance approvals before starting a recount.')
     const count = {
-      id: countId,
+      id: makeId('CNT'),
       date: day(),
-      warehouseId: values.warehouseId,
-      lines: selected.map((batch) => ({
+      updatedAt: day(),
+      warehouseId,
+      recountOf,
+      lines: batches.map((batch) => ({
         batchId: batch.id,
         batchNo: batch.batchNo,
         productId: batch.productId,
         bookQty: Number(batch.qty),
-        countedQty: Number(countValues[batch.id]),
+        countedQty: null,
       })),
-      status: 'Completed',
+      status: 'In progress',
     }
-    const differences = count.lines
+    const counts = data.counts.map((item) =>
+      item.id === recountOf && item.status === 'In progress'
+        ? { ...item, status: 'Superseded', supersededBy: count.id, updatedAt: day() }
+        : item,
+    )
+    if (
+      save(
+        { ...data, counts: [count, ...counts] },
+        'Count started. Progress is saved in this browser.',
+      )
+    ) {
+      setActiveCountId(count.id)
+      setCountWarehouseId(warehouseId)
+      setCountValues({})
+      return true
+    }
+    return false
+  }
+  const resumePhysicalCount = (countId) => {
+    const count = data.counts.find((item) => item.id === countId && item.status === 'In progress')
+    if (!count) return onNotify('This count is no longer available to resume.')
+    setActiveCountId(count.id)
+    setCountWarehouseId(count.warehouseId)
+    setCountValues(
+      Object.fromEntries(
+        count.lines.map((line) => [
+          line.batchId,
+          line.countedQty == null ? '' : String(line.countedQty),
+        ]),
+      ),
+    )
+    onNavigate('Physical Stock Count')
+  }
+  const savePhysicalCount = () => {
+    const count = data.counts.find((item) => item.id === activeCountId)
+    if (!count || count.status !== 'In progress')
+      return onNotify('Start or resume an in-progress count before saving.')
+    const lines = count.lines.map((line) => {
+      const value = countValues[line.batchId]
+      return {
+        ...line,
+        countedQty:
+          value === undefined || value === ''
+            ? null
+            : Number.isFinite(Number(value))
+              ? Number(value)
+              : NaN,
+      }
+    })
+    const invalid = lines.find((line) => Number.isNaN(line.countedQty) || line.countedQty < 0)
+    if (invalid) return onNotify(`Enter a valid non-negative count for batch ${invalid.batchNo}.`)
+    const updated = {
+      ...count,
+      lines,
+      updatedAt: day(),
+    }
+    save(
+      { ...data, counts: data.counts.map((item) => (item.id === count.id ? updated : item)) },
+      'Count progress saved. You can resume it from Stock Reconciliation.',
+    )
+  }
+  const submitPhysicalCount = (event) => {
+    event.preventDefault()
+    const count = data.counts.find((item) => item.id === activeCountId)
+    if (!count || count.status !== 'In progress')
+      return onNotify('Start or resume an in-progress count before submitting.')
+    const missing = count.lines.find(
+      (line) =>
+        countValues[line.batchId] === undefined ||
+        countValues[line.batchId] === '' ||
+        !Number.isFinite(Number(countValues[line.batchId])) ||
+        Number(countValues[line.batchId]) < 0,
+    )
+    if (missing) return onNotify(`Enter a valid physical count for batch ${missing.batchNo}.`)
+    const stale = count.lines.find((line) => {
+      const current = data.batches.find((batch) => batch.id === line.batchId)
+      return !current || Number(current.qty) !== Number(line.bookQty)
+    })
+    if (stale)
+      return onNotify(
+        `Book stock for batch ${stale.batchNo} changed during this count. Start a recount using the current book quantities.`,
+      )
+    const lines = count.lines.map((line) => ({
+      ...line,
+      countedQty: Number(countValues[line.batchId]),
+    }))
+    const differences = lines
       .filter((line) => line.bookQty !== line.countedQty)
       .map((line) => ({
         id: makeId('ADJ'),
@@ -1336,29 +1500,39 @@ function InventoryModule({ page, onNotify, onNavigate }) {
         batchId: line.batchId,
         batchNo: line.batchNo,
         productId: line.productId,
-        warehouseId: values.warehouseId,
+        warehouseId: count.warehouseId,
         qty: Math.abs(line.countedQty - line.bookQty),
         direction: Math.sign(line.countedQty - line.bookQty),
-        reason: `Physical reconciliation · ${countId} · book ${line.bookQty}, counted ${line.countedQty}`,
+        reason: `Physical reconciliation · ${count.id} · book ${line.bookQty}, counted ${line.countedQty}`,
         type: 'Count variance',
-        reference: countId,
+        reference: count.id,
         status: 'Pending',
-        countId,
+        countId: count.id,
+        bookQty: line.bookQty,
+        countedQty: line.countedQty,
       }))
-    count.status = differences.length ? 'Awaiting approval' : 'Reconciled'
+    const updated = {
+      ...count,
+      lines,
+      status: differences.length ? 'Awaiting approval' : 'Reconciled',
+      submittedAt: day(),
+      updatedAt: day(),
+    }
     if (
       save(
         {
           ...data,
-          counts: [count, ...data.counts],
+          counts: data.counts.map((item) => (item.id === count.id ? updated : item)),
           approvals: [...differences, ...data.approvals],
         },
         differences.length
           ? `${differences.length} count variance(s) sent to approval; book stock remains unchanged until approved.`
           : 'Physical count matches book stock; count reconciled.',
       )
-    )
+    ) {
+      setActiveCountId('')
       setCountValues({})
+    }
   }
   const decideApproval = (approval, decision) => {
     if (approval.status !== 'Pending') return
@@ -1366,6 +1540,14 @@ function InventoryModule({ page, onNotify, onNavigate }) {
     if (decision === 'Approved') {
       const batch = next.batches.find((item) => item.id === approval.batchId)
       if (!batch) return onNotify('The source batch for this approval no longer exists.')
+      if (
+        approval.countId &&
+        approval.bookQty != null &&
+        Number(batch.qty) !== Number(approval.bookQty)
+      )
+        return onNotify(
+          'Approval blocked: book stock changed after this count. Reject this variance and recount before posting an adjustment.',
+        )
       if (approval.direction < 0 && approval.qty > Number(batch.qty))
         return onNotify('Approval blocked: requested write-off now exceeds remaining batch stock.')
       next.batches = next.batches.map((item) => {
@@ -1432,6 +1614,7 @@ function InventoryModule({ page, onNotify, onNavigate }) {
     onNotify,
     onNavigate,
     data,
+    procurementData,
     editingProduct,
     setEditingProductId,
     editingWarehouse,
@@ -1452,6 +1635,10 @@ function InventoryModule({ page, onNotify, onNavigate }) {
     setNewUnit,
     countValues,
     setCountValues,
+    activeCount,
+    startPhysicalCount,
+    resumePhysicalCount,
+    savePhysicalCount,
     receivingWarehouseId,
     setReceivingWarehouseId,
     batchWarehouseId,
@@ -1500,6 +1687,7 @@ function InventoryModule({ page, onNotify, onNavigate }) {
     toggleWarehouseStatus,
     toggleLocationStatus,
     saveBatchReceipt,
+    createPurchaseOrder,
     submitQualityInspection,
     submitBatch,
     submitIssue,

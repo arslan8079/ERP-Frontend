@@ -43,6 +43,8 @@ export default function RecoveryPage({ data, employees, periodName }) {
             'Pay period',
             'Recovered amount',
             'Posted',
+            'Status',
+            'Reversal reason',
           ]}
         >
           {data.recoveries.map((item) => (
@@ -58,6 +60,10 @@ export default function RecoveryPage({ data, employees, periodName }) {
               <td>{periodName(item.periodId)}</td>
               <td>{money(item.amount)}</td>
               <td>{item.date}</td>
+              <td>
+                <Status>{item.status || 'Posted'}</Status>
+              </td>
+              <td>{item.reversalReason || '—'}</td>
             </tr>
           ))}
         </Table>

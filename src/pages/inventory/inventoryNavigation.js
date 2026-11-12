@@ -19,6 +19,7 @@ export const inventoryGroups = [
     items: [
       'Stock Opening',
       'Stock In (GRN)',
+      'Purchase Orders',
       'Stock Out (Issue)',
       'Stock Transfer',
       'Stock Adjustments',

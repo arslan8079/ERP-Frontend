@@ -27,14 +27,30 @@ const {
 export default function LeaveReportsPage({ data, employees, onNotify }) {
   const requests = data.leaveRequests
   const exportData = [
-    ['Request', 'Employee ID', 'Leave type', 'Start', 'End', 'Days', 'Status'],
+    [
+      'Request',
+      'Type',
+      'Original request',
+      'Employee ID',
+      'Leave type',
+      'Start',
+      'End',
+      'Days',
+      'Reason',
+      'Change reason',
+      'Status',
+    ],
     ...requests.map((item) => [
       item.id,
+      item.requestType || 'Leave',
+      item.originalRequestId || '',
       item.employeeId,
       data.leaveTypes.find((type) => type.id === item.typeId)?.name,
       item.startDate,
       item.endDate,
       item.days,
+      item.reason,
+      item.changeReason || item.withdrawalReason || '',
       item.status,
     ]),
   ]
@@ -60,7 +76,7 @@ export default function LeaveReportsPage({ data, employees, onNotify }) {
           icon={CheckCircle2}
           label="Approved days"
           value={requests
-            .filter((item) => item.status === 'Approved')
+            .filter((item) => item.status === 'Approved' && item.requestType !== 'Withdrawal')
             .reduce((sum, item) => sum + item.days, 0)}
           tone="blue"
         />
@@ -75,7 +91,12 @@ export default function LeaveReportsPage({ data, employees, onNotify }) {
       <Card title="Leave utilization by type" icon={TrendingUp}>
         {data.leaveTypes.map((type) => {
           const used = requests
-            .filter((item) => item.typeId === type.id && item.status === 'Approved')
+            .filter(
+              (item) =>
+                item.typeId === type.id &&
+                item.status === 'Approved' &&
+                item.requestType !== 'Withdrawal',
+            )
             .reduce((sum, item) => sum + item.days, 0)
           return (
             <MetricBar

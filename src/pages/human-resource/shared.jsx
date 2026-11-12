@@ -12,6 +12,36 @@ export const formatDate = (value) =>
 export const daysBetween = (start, end) =>
   Math.round((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1
 
+let idSequence = 0
+export const idFor = (prefix) => `${prefix}-${Date.now()}-${String(++idSequence).padStart(3, '0')}`
+
+export const leaveBalance = (
+  data,
+  employeeId,
+  typeId,
+  asOfDate = today(),
+  excludedRequestId = '',
+) => {
+  const type = data.leaveTypes.find((item) => item.id === typeId)
+  if (!type) return 0
+  const adjustments = (data.leaveBalanceTransactions || [])
+    .filter(
+      (item) => item.employeeId === employeeId && item.typeId === typeId && item.date <= asOfDate,
+    )
+    .reduce((sum, item) => sum + Number(item.days || 0), 0)
+  const used = data.leaveRequests
+    .filter(
+      (item) =>
+        item.employeeId === employeeId &&
+        item.typeId === typeId &&
+        item.status === 'Approved' &&
+        item.requestType !== 'Withdrawal' &&
+        item.id !== excludedRequestId,
+    )
+    .reduce((sum, item) => sum + Number(item.days || 0), 0)
+  return type.days + adjustments - used
+}
+
 export function PageHeader({ title, subtitle, icon: Icon = Users, action }) {
   return (
     <header className="hr-page-header">
@@ -123,7 +153,15 @@ export function LeaveRequestTable({ data, employeeName, onApprove }) {
       >
         {data.leaveRequests.map((item) => (
           <tr key={item.id}>
-            <td>{item.id}</td>
+            <td>
+              <b>{item.id}</b>
+              {item.requestType && item.requestType !== 'Leave' && (
+                <small className="hr-cell-sub">
+                  {item.requestType}
+                  {item.originalRequestId ? ` · ${item.originalRequestId}` : ''}
+                </small>
+              )}
+            </td>
             <td>{employeeName(item.employeeId)}</td>
             <td>{data.leaveTypes.find((type) => type.id === item.typeId)?.name || 'Leave'}</td>
             <td>

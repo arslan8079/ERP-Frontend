@@ -629,8 +629,8 @@ function FinanceModule({ page, onNotify, onNavigate }) {
       'Posted',
       false,
     )
-    if (!entry) return
-    updateData(
+    if (!entry) return false
+    return updateData(
       (current) => ({
         ...current,
         bills: [bill, ...current.bills],

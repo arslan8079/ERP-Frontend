@@ -7,6 +7,10 @@ import {
   idFor,
   activeEmployees,
   calculateSalary,
+  batchHasVarianceReasons,
+  batchIsSettled,
+  periodCanClose,
+  payrollVariances,
   summarizePayrollBasis,
 } from './shared'
 import PayrollDashboard from './dashboard/PayrollDashboard'
@@ -158,6 +162,7 @@ function initialData(sourceEmployees) {
     advances: [],
     loans: [],
     recoveries: [],
+    periodHistory: [],
   }
 }
 
@@ -465,27 +470,52 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
     )
   }
   const generatePayroll = (periodId) => {
-    const period = data.periods.find((item) => item.id === periodId)
+    const current = dataRef.current
+    const period = current.periods.find((item) => item.id === periodId)
     if (!period || period.status !== 'Open')
       return notify('Only an open payroll period can be processed.')
-    if (data.batches.some((item) => item.periodId === periodId))
+    if (current.batches.some((item) => item.periodId === periodId && item.status !== 'Reversed'))
       return notify('A payroll batch already exists for this period.')
     const payrollBasis = summarizePayrollBasis(periodId, employees)
     const slips = employees.map((employee) =>
       calculateSalary(
         employee,
-        data.assignments.find((item) => item.employeeId === employee.id),
-        data.structures,
-        data.loans,
+        current.assignments.find((item) => item.employeeId === employee.id),
+        current.structures,
+        current.loans,
       ),
     )
     if (!slips.length || slips.some((item) => item.structureName === 'Unassigned'))
       return notify(
         'Assign an active salary structure to every employee before generating payroll.',
       )
+    const variances = slips.map((slip) => {
+      const previousBatch = current.batches
+        .filter(
+          (item) =>
+            item.status === 'Paid' &&
+            item.periodId < periodId &&
+            item.payslips.some((previous) => previous.employeeId === slip.employeeId),
+        )
+        .sort((a, b) => b.periodId.localeCompare(a.periodId))[0]
+      const previousSlip = previousBatch?.payslips.find(
+        (item) => item.employeeId === slip.employeeId,
+      )
+      return {
+        employeeId: slip.employeeId,
+        employeeName: slip.employeeName,
+        previousBatchId: previousBatch?.id || '',
+        previousNet: previousSlip ? Number(previousSlip.net) : null,
+        currentNet: slip.net,
+        varianceAmount: previousSlip ? slip.net - Number(previousSlip.net) : null,
+        reason: '',
+      }
+    })
+    const revision = current.batches.filter((item) => item.periodId === periodId).length + 1
     const batch = {
-      id: `PAY-${periodId.replace('-', '')}-${String(Date.now()).slice(-3)}`,
+      id: `PAY-${periodId.replace('-', '')}-${String(revision).padStart(2, '0')}`,
       periodId,
+      revision,
       status: 'Draft',
       payslips: slips,
       gross: slips.reduce((sum, item) => sum + item.gross, 0),
@@ -494,6 +524,7 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
       employeeCount: slips.length,
       createdAt: today(),
       basis: payrollBasis,
+      variances,
     }
     if (
       updateData(
@@ -509,8 +540,13 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
     )
       onNavigate('Payroll Drafts')
   }
-  const setBatchStatus = (batchId, status) =>
-    updateData(
+  const setBatchStatus = (batchId, status) => {
+    const current = dataRef.current
+    const batch = current.batches.find((item) => item.id === batchId)
+    if (!batch || batch.status === 'Reversed') return notify('Payroll batch is not available.')
+    if (status === 'Reviewed' && !batchHasVarianceReasons(batch, current.batches))
+      return notify('Record a reason for every payroll variance before approving this batch.')
+    return updateData(
       (current) => ({
         ...current,
         batches: current.batches.map((batch) =>
@@ -530,10 +566,25 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
           ? 'Payroll batch approved for finalization'
           : 'Payroll batch returned to drafts',
     )
+  }
   const finalizePayroll = (batchId) => {
-    const batch = data.batches.find((item) => item.id === batchId)
+    const current = dataRef.current
+    const batch = current.batches.find((item) => item.id === batchId)
     if (!batch || batch.status !== 'Reviewed')
       return notify('Only an approved payroll batch can be finalized.')
+    const period = current.periods.find((item) => item.id === batch.periodId)
+    if (period?.status === 'Closed')
+      return notify('Reopen the payroll period with a reason before finalizing a correction.')
+    const finalStatus = batchIsSettled(batch, current.payments) ? 'Paid' : 'Finalized'
+    const batchesAfterFinalization = current.batches.map((item) =>
+      item.id === batchId ? { ...item, status: finalStatus } : item,
+    )
+    const periodStatus =
+      period?.status === 'Reopened'
+        ? 'Reopened'
+        : periodCanClose(batch.periodId, batchesAfterFinalization, current.payments)
+          ? 'Paid'
+          : 'Finalized'
     const recoveries = batch.payslips.flatMap((slip) =>
       slip.loanDeductions.map((item) => ({
         id: idFor('REC'),
@@ -549,10 +600,19 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
       (current) => ({
         ...current,
         batches: current.batches.map((item) =>
-          item.id === batchId ? { ...item, status: 'Finalized', finalizedAt: today() } : item,
+          item.id === batchId
+            ? {
+                ...item,
+                status: finalStatus,
+                finalizedAt: today(),
+                ...(finalStatus === 'Paid' ? { paidAt: today() } : {}),
+              }
+            : item,
         ),
         periods: current.periods.map((item) =>
-          item.id === batch.periodId ? { ...item, status: 'Finalized' } : item,
+          item.id === batch.periodId && item.status !== 'Reopened'
+            ? { ...item, status: periodStatus }
+            : item,
         ),
         loans: current.loans.map((loan) => {
           const amount = recoveries
@@ -569,18 +629,387 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
     )
   }
   const processPayments = (batchId) => {
-    const batch = data.batches.find((item) => item.id === batchId)
+    const current = dataRef.current
+    const batch = current.batches.find((item) => item.id === batchId)
     if (!batch || batch.status !== 'Finalized')
       return notify('Finalize the approved payroll batch before processing payments.')
-    const payments = buildPaymentInstructions(batch, data.payments, () => idFor('PM'), today())
+    const payments = buildPaymentInstructions(batch, current.payments, () => idFor('PM'), today())
     if (!payments.length)
-      return notify('Payment instructions already exist for every employee in this batch.')
+      return notify('No outstanding balance is ready for a new payment instruction.')
     updateData(
       (current) => ({
         ...current,
         payments: [...payments, ...current.payments],
       }),
       `${payments.length} payment instruction(s) recorded locally; bank settlement is not confirmed`,
+    )
+  }
+  const saveVarianceReason = (batchId, employeeId, reason) =>
+    updateData(
+      (current) => ({
+        ...current,
+        batches: current.batches.map((batch) =>
+          batch.id === batchId
+            ? {
+                ...batch,
+                variances: payrollVariances(batch, current.batches).map((variance) =>
+                  variance.employeeId === employeeId ? { ...variance, reason } : variance,
+                ),
+              }
+            : batch,
+        ),
+      }),
+      '',
+    )
+  const recordPaymentOutcome = (paymentId, values) => {
+    const current = dataRef.current
+    const payment = current.payments.find((item) => item.id === paymentId)
+    if (!payment || payment.status !== 'Pending bank confirmation')
+      return notify('Only a pending payment instruction can receive an outcome.')
+    if (!values.date) return notify('Enter the date of the payment outcome.')
+    if (values.status === 'Failed' && !String(values.failureReason || '').trim())
+      return notify('Enter a reason for the failed payment.')
+    if (
+      ['Paid', 'Partially Paid'].includes(values.status) &&
+      !String(values.reference || '').trim()
+    )
+      return notify('Enter the settlement reference for this payment.')
+    const paidAmount =
+      values.status === 'Paid'
+        ? Number(payment.amount)
+        : values.status === 'Partially Paid'
+          ? Number(values.paidAmount)
+          : 0
+    if (
+      values.status === 'Partially Paid' &&
+      (!Number.isFinite(paidAmount) || paidAmount <= 0 || paidAmount >= Number(payment.amount))
+    )
+      return notify(
+        'A partial payment must be greater than zero and less than the instructed amount.',
+      )
+    const nextPayments = current.payments.map((item) =>
+      item.id === paymentId
+        ? {
+            ...item,
+            status: values.status,
+            paidAmount,
+            outcomeDate: values.date,
+            settlementReference: String(values.reference || '').trim(),
+            failureReason: String(values.failureReason || '').trim(),
+          }
+        : item,
+    )
+    const batch = current.batches.find((item) => item.id === payment.batchId)
+    if (!batch) return notify('The payroll batch for this instruction was not found.')
+    if (current.periods.find((item) => item.id === batch.periodId)?.status === 'Closed')
+      return notify('Reopen the payroll period before recording a payment outcome.')
+    const settled = batchIsSettled(batch, nextPayments)
+    updateData(
+      (latest) => ({
+        ...latest,
+        payments: nextPayments,
+        batches: latest.batches.map((item) =>
+          item.id === batch.id
+            ? {
+                ...item,
+                status: settled ? 'Paid' : 'Finalized',
+                ...(settled ? { paidAt: today() } : {}),
+              }
+            : item,
+        ),
+        periods: latest.periods.map((item) => {
+          if (item.id !== batch.periodId || item.status === 'Reopened') return item
+          if (
+            periodCanClose(
+              item.id,
+              latest.batches.map((row) =>
+                row.id === batch.id ? { ...row, status: settled ? 'Paid' : 'Finalized' } : row,
+              ),
+              nextPayments,
+            )
+          )
+            return { ...item, status: 'Paid' }
+          return item.status === 'Paid' ? { ...item, status: 'Finalized' } : item
+        }),
+      }),
+      values.status === 'Failed'
+        ? 'Payment failure recorded; the unpaid balance remains due.'
+        : values.status === 'Partially Paid'
+          ? 'Partial payment recorded; only the outstanding balance can be retried.'
+          : 'Payment outcome recorded.',
+    )
+  }
+  const reversePayroll = (batchId, reason) => {
+    const current = dataRef.current
+    const batch = current.batches.find((item) => item.id === batchId)
+    if (!batch || batch.status !== 'Finalized')
+      return notify('Only a finalized, unpaid payroll batch can be reversed.')
+    if (!String(reason || '').trim()) return notify('Enter a reason for reversing this run.')
+    if (current.payments.some((item) => item.batchId === batchId))
+      return notify('A payment instruction already exists. Use an adjustment run instead.')
+    const period = current.periods.find((item) => item.id === batch.periodId)
+    if (
+      period?.status === 'Closed' ||
+      (period?.status === 'Reopened' && batch.type !== 'Adjustment')
+    )
+      return notify('Use an adjustment run for a closed or reopened payroll period.')
+    const remainingBatches = current.batches.filter(
+      (item) =>
+        item.periodId === batch.periodId && item.id !== batchId && item.status !== 'Reversed',
+    )
+    const remainingSettled =
+      remainingBatches.length > 0 &&
+      remainingBatches.every(
+        (item) => item.status === 'Paid' && batchIsSettled(item, current.payments),
+      )
+    const recoveryAmounts = current.recoveries
+      .filter((item) => item.batchId === batchId && item.status !== 'Reversed')
+      .reduce((totals, item) => {
+        totals[item.loanId] = (totals[item.loanId] || 0) + Number(item.amount || 0)
+        return totals
+      }, {})
+    updateData(
+      (latest) => ({
+        ...latest,
+        batches: latest.batches.map((item) =>
+          item.id === batchId
+            ? {
+                ...item,
+                status: 'Reversed',
+                reversedAt: today(),
+                reversalReason: String(reason).trim(),
+              }
+            : item,
+        ),
+        periods: latest.periods.map((item) =>
+          item.id === batch.periodId
+            ? {
+                ...item,
+                status:
+                  item.status === 'Reopened'
+                    ? 'Reopened'
+                    : remainingBatches.length === 0
+                      ? 'Open'
+                      : remainingSettled
+                        ? 'Paid'
+                        : 'Processing',
+              }
+            : item,
+        ),
+        loans: latest.loans.map((loan) => {
+          const amount = recoveryAmounts[loan.id] || 0
+          if (!amount) return loan
+          const recovered = Math.max(0, Number(loan.recovered) - amount)
+          return {
+            ...loan,
+            recovered,
+            status: recovered >= Number(loan.amount) ? 'Repaid' : 'Active',
+          }
+        }),
+        recoveries: latest.recoveries.map((item) =>
+          item.batchId === batchId
+            ? {
+                ...item,
+                status: 'Reversed',
+                reversedAt: today(),
+                reversalReason: String(reason).trim(),
+              }
+            : item,
+        ),
+        periodHistory: [
+          {
+            id: idFor('PER'),
+            periodId: batch.periodId,
+            action: 'Run reversed',
+            date: today(),
+            reason: String(reason).trim(),
+            batchId,
+          },
+          ...latest.periodHistory,
+        ],
+      }),
+      'Unpaid payroll run reversed. The period is open for a corrected revision.',
+    )
+  }
+  const createAdjustmentRun = (sourceBatchId, values) => {
+    const current = dataRef.current
+    const sourceBatch = current.batches.find((item) => item.id === sourceBatchId)
+    if (!sourceBatch || !['Finalized', 'Paid'].includes(sourceBatch.status))
+      return notify('Adjustments require a finalized or paid source batch.')
+    const period = current.periods.find((item) => item.id === sourceBatch.periodId)
+    if (period?.status === 'Closed')
+      return notify('Reopen the period with a reason before creating an adjustment.')
+    const paymentStarted =
+      sourceBatch.status === 'Paid' ||
+      current.payments.some((item) => item.batchId === sourceBatchId)
+    if (!paymentStarted && period?.status !== 'Reopened')
+      return notify('Reverse and regenerate this run before payment instructions are created.')
+    const sourceSlip = sourceBatch.payslips.find((item) => item.employeeId === values.employeeId)
+    const amount = Number(values.amount)
+    const reason = String(values.reason || '').trim()
+    if (!sourceSlip) return notify('Choose an employee from the source payroll batch.')
+    if (!Number.isFinite(amount) || amount === 0)
+      return notify('Enter a non-zero adjustment amount.')
+    if (!reason) return notify('Enter a reason for the payroll adjustment.')
+    const payable = Math.max(0, amount)
+    const recoveryDue = Math.max(0, -amount)
+    const slip = {
+      ...sourceSlip,
+      structureName: 'Payroll adjustment',
+      basic: 0,
+      allowances: payable ? [{ name: 'Payroll correction adjustment', amount: payable }] : [],
+      deductions: [],
+      loanDeductions: [],
+      gross: payable,
+      totalDeductions: 0,
+      net: payable,
+      paymentStatus: 'Pending',
+      adjustmentAmount: amount,
+      adjustmentReason: reason,
+      recoveryDue,
+      recoveryResolution: null,
+    }
+    const adjustmentBatch = {
+      id: idFor('PAY-ADJ'),
+      periodId: sourceBatch.periodId,
+      revision: current.batches.filter((item) => item.periodId === sourceBatch.periodId).length + 1,
+      type: 'Adjustment',
+      adjustmentOf: sourceBatchId,
+      status: 'Draft',
+      payslips: [slip],
+      gross: payable,
+      deductions: 0,
+      net: payable,
+      employeeCount: 1,
+      createdAt: today(),
+      variances: [
+        {
+          employeeId: slip.employeeId,
+          employeeName: slip.employeeName,
+          previousBatchId: sourceBatchId,
+          previousNet: sourceSlip.net,
+          currentNet: sourceSlip.net + amount,
+          varianceAmount: amount,
+          reason,
+        },
+      ],
+    }
+    updateData(
+      (latest) => ({
+        ...latest,
+        batches: [adjustmentBatch, ...latest.batches],
+        periods: latest.periods.map((item) =>
+          item.id === sourceBatch.periodId && item.status !== 'Reopened'
+            ? { ...item, status: 'Processing' }
+            : item,
+        ),
+      }),
+      'Adjustment run created and sent through review; the source payroll remains unchanged.',
+    )
+  }
+  const resolveRecoveryDue = (batchId, employeeId, values) => {
+    const current = dataRef.current
+    const batch = current.batches.find((item) => item.id === batchId)
+    const slip = batch?.payslips.find((item) => item.employeeId === employeeId)
+    if (!batch || batch.status !== 'Finalized' || !slip?.recoveryDue)
+      return notify('Only a finalized adjustment with outstanding recovery can be resolved.')
+    if (
+      !values.date ||
+      !String(values.reference || '').trim() ||
+      !String(values.reason || '').trim()
+    )
+      return notify('Enter the recovery date, reference, and resolution reason.')
+    const payslips = batch.payslips.map((item) =>
+      item.employeeId === employeeId
+        ? {
+            ...item,
+            recoveryResolution: {
+              date: values.date,
+              reference: String(values.reference).trim(),
+              reason: String(values.reason).trim(),
+            },
+          }
+        : item,
+    )
+    const updatedBatch = { ...batch, payslips }
+    const settled = batchIsSettled(updatedBatch, current.payments)
+    updateData(
+      (latest) => ({
+        ...latest,
+        batches: latest.batches.map((item) =>
+          item.id === batchId
+            ? {
+                ...item,
+                payslips,
+                status: settled ? 'Paid' : item.status,
+                ...(settled ? { paidAt: today() } : {}),
+              }
+            : item,
+        ),
+        periods: latest.periods.map((item) => {
+          if (item.id !== batch.periodId || item.status === 'Reopened') return item
+          const batches = latest.batches.map((row) =>
+            row.id === batchId ? { ...row, payslips, status: settled ? 'Paid' : row.status } : row,
+          )
+          return periodCanClose(item.id, batches, latest.payments)
+            ? { ...item, status: 'Paid' }
+            : item
+        }),
+      }),
+      'Recovery resolution recorded; no automatic deduction was made.',
+    )
+  }
+  const closePeriod = (periodId) => {
+    const current = dataRef.current
+    const period = current.periods.find((item) => item.id === periodId)
+    if (!period || period.status === 'Closed') return notify('Payroll period is already closed.')
+    if (!periodCanClose(periodId, current.batches, current.payments))
+      return notify('Settle all employee payments and recovery balances before closing the period.')
+    updateData(
+      (latest) => ({
+        ...latest,
+        periods: latest.periods.map((item) =>
+          item.id === periodId ? { ...item, status: 'Closed', closedAt: today() } : item,
+        ),
+        periodHistory: [
+          { id: idFor('PER'), periodId, action: 'Period closed', date: today() },
+          ...latest.periodHistory,
+        ],
+      }),
+      `${periodName(periodId)} payroll period closed.`,
+    )
+  }
+  const reopenPeriod = (periodId, reason) => {
+    const current = dataRef.current
+    const period = current.periods.find((item) => item.id === periodId)
+    if (!period || period.status !== 'Closed')
+      return notify('Only a closed period can be reopened.')
+    if (!String(reason || '').trim()) return notify('Enter a reason for reopening the period.')
+    updateData(
+      (latest) => ({
+        ...latest,
+        periods: latest.periods.map((item) =>
+          item.id === periodId
+            ? {
+                ...item,
+                status: 'Reopened',
+                reopenedAt: today(),
+                reopenReason: String(reason).trim(),
+              }
+            : item,
+        ),
+        periodHistory: [
+          {
+            id: idFor('PER'),
+            periodId,
+            action: 'Period reopened',
+            date: today(),
+            reason: String(reason).trim(),
+          },
+          ...latest.periodHistory,
+        ],
+      }),
+      `${periodName(periodId)} reopened for adjustment runs; original batches remain unchanged.`,
     )
   }
   const requestAdvance = (values) =>
@@ -664,8 +1093,15 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
     createPeriod,
     generatePayroll,
     setBatchStatus,
+    saveVarianceReason,
     finalizePayroll,
+    reversePayroll,
+    createAdjustmentRun,
+    resolveRecoveryDue,
+    closePeriod,
+    reopenPeriod,
     processPayments,
+    recordPaymentOutcome,
     requestAdvance,
     decideAdvance,
     onNavigate,
@@ -722,9 +1158,9 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
       content = (
         <PayrollHistory
           {...pageProps}
-          statuses={['Finalized', 'Paid']}
+          statuses={['Finalized', 'Paid', 'Reversed']}
           title="Payroll History"
-          subtitle="Auditable record of finalized payroll runs and payment progress."
+          subtitle="Review finalized, paid, and reversed runs; corrections preserve the source payroll."
         />
       )
       break

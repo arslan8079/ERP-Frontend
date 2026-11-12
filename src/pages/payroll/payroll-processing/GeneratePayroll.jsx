@@ -36,7 +36,9 @@ export default function GeneratePayrollPage({
   onNotify,
 }) {
   const available = data.periods.filter(
-    (item) => item.status === 'Open' && !data.batches.some((batch) => batch.periodId === item.id),
+    (item) =>
+      item.status === 'Open' &&
+      !data.batches.some((batch) => batch.periodId === item.id && batch.status !== 'Reversed'),
   )
   const [periodId, setPeriodId] = useState(available[0]?.id || '')
   const estimate = employees.reduce((sum, employee) => {

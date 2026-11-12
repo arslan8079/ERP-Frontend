@@ -24,12 +24,21 @@ const {
   Callout,
   ExportButton,
   downloadCsv,
+  payrollVariances,
+  varianceRequiresReason,
 } = Shared
 
-export default function ReviewPage({ data, setBatchStatus, periodName, onNavigate }) {
+export default function ReviewPage({
+  data,
+  setBatchStatus,
+  saveVarianceReason,
+  periodName,
+  onNavigate,
+}) {
   const batches = data.batches.filter((item) => ['In Review', 'Reviewed'].includes(item.status))
   const [selectedId, setSelectedId] = useState('')
   const selected = batches.find((item) => item.id === selectedId) || batches[0]
+  const variances = selected ? payrollVariances(selected, data.batches) : []
   return (
     <>
       <PageHeader
@@ -53,6 +62,7 @@ export default function ReviewPage({ data, setBatchStatus, periodName, onNavigat
             'Gross',
             'Deductions',
             'Net payable',
+            'Variances to explain',
             'Status',
             'Decision',
           ]}
@@ -72,6 +82,14 @@ export default function ReviewPage({ data, setBatchStatus, periodName, onNavigat
                 <b>{money(batch.net)}</b>
               </td>
               <td>
+                {
+                  payrollVariances(batch, data.batches).filter(
+                    (item) => varianceRequiresReason(item) && !String(item.reason || '').trim(),
+                  ).length
+                }{' '}
+                reason(s) required
+              </td>
+              <td>
                 <Status>{batch.status}</Status>
               </td>
               <td>
@@ -79,6 +97,10 @@ export default function ReviewPage({ data, setBatchStatus, periodName, onNavigat
                   <div className="pr-row-actions">
                     <button
                       className="pr-inline-action approve"
+                      disabled={payrollVariances(batch, data.batches).some(
+                        (item) => varianceRequiresReason(item) && !String(item.reason || '').trim(),
+                      )}
+                      title="Select the batch and enter a reason for each variance before approval."
                       onClick={() => setBatchStatus(batch.id, 'Reviewed')}
                     >
                       Approve
@@ -113,7 +135,78 @@ export default function ReviewPage({ data, setBatchStatus, periodName, onNavigat
             {selected.basis?.calculationPolicy ||
               'HR attendance/leave inputs are excluded pending policy confirmation.'}
           </p>
-          <PayslipTable slips={selected.payslips} />
+          <Card
+            title={
+              selected.type === 'Adjustment' ? 'Adjustment review' : 'Employee variance review'
+            }
+            icon={ReceiptText}
+          >
+            <p className="pr-card-note">
+              {selected.type === 'Adjustment'
+                ? `Adjustment against source batch ${selected.adjustmentOf}. The source payroll remains unchanged.`
+                : 'Each employee is compared with their most recent previous paid run. Explain every change; employees without a prior paid run need a first-payroll reason.'}
+            </p>
+            <Table
+              headers={
+                selected.type === 'Adjustment'
+                  ? ['Employee', 'Source net', 'Adjustment', 'Recovery due', 'Reason']
+                  : ['Employee', 'Previous paid net', 'Current net', 'Variance', 'Reason']
+              }
+            >
+              {variances.map((variance) => {
+                const requiresReason = varianceRequiresReason(variance)
+                return (
+                  <tr key={variance.employeeId}>
+                    <td>
+                      <b>{variance.employeeName}</b>
+                      <small className="pr-cell-sub">{variance.employeeId}</small>
+                    </td>
+                    {selected.type === 'Adjustment' ? (
+                      <>
+                        <td>{money(variance.previousNet)}</td>
+                        <td>{money(Math.abs(variance.varianceAmount))}</td>
+                        <td>
+                          {variance.varianceAmount < 0
+                            ? money(Math.abs(variance.varianceAmount))
+                            : '—'}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td>
+                          {variance.previousNet === null
+                            ? 'No previous paid run'
+                            : money(variance.previousNet)}
+                        </td>
+                        <td>{money(variance.currentNet)}</td>
+                        <td>
+                          {variance.varianceAmount === null
+                            ? 'No baseline'
+                            : `${variance.varianceAmount > 0 ? '+' : ''}${money(variance.varianceAmount)}`}
+                        </td>
+                      </>
+                    )}
+                    <td>
+                      {requiresReason ? (
+                        <input
+                          aria-label={`Reason for variance ${variance.employeeName}`}
+                          value={variance.reason || ''}
+                          onChange={(event) =>
+                            saveVarianceReason(selected.id, variance.employeeId, event.target.value)
+                          }
+                        />
+                      ) : (
+                        <span className="pr-muted">No net change</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </Table>
+          </Card>
+          <Card title="Calculation detail" icon={ReceiptText}>
+            <PayslipTable slips={selected.payslips} />
+          </Card>
         </Card>
       )}
     </>

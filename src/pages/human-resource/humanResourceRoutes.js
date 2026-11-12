@@ -4,6 +4,11 @@ const routes = [
   { page: 'Add Employee', category: 'employee-management', slug: 'add-employee' },
   { page: 'Edit Employee', category: 'employee-management', slug: 'edit-employee' },
   { page: 'Employee Profile', category: 'employee-management', slug: 'employee-profile' },
+  {
+    page: 'Employee Exit & Clearance',
+    category: 'employee-management',
+    slug: 'employee-exit-clearance',
+  },
   { page: 'Employee Documents', category: 'employee-management', slug: 'employee-documents' },
   { page: 'Transfers & Promotions', category: 'employee-management', slug: 'transfers-promotions' },
   { page: 'Employee Reports', category: 'employee-management', slug: 'employee-reports' },

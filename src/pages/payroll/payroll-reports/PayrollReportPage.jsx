@@ -36,6 +36,8 @@ const {
   Callout,
   ExportButton,
   downloadCsv,
+  paymentPaidAmount,
+  batchOutstandingAmount,
 } = Shared
 
 export default function PayrollReportPage({
@@ -49,8 +51,11 @@ export default function PayrollReportPage({
 }) {
   const [periodId, setPeriodId] = useState(data.batches[0]?.periodId || monthKey())
   const [query, setQuery] = useState('')
-  const batch = data.batches.find((item) => item.periodId === periodId)
-  const slips = batch?.payslips || []
+  const periodBatches = data.batches.filter(
+    (item) => item.periodId === periodId && item.status !== 'Reversed',
+  )
+  const paymentBatches = periodBatches.filter((item) => ['Finalized', 'Paid'].includes(item.status))
+  const slips = periodBatches.flatMap((item) => item.payslips)
   const search = page === 'Employee Salary History' ? employeeSearch : query
   const setSearch = page === 'Employee Salary History' ? setEmployeeSearch : setQuery
   const visibleSlips = slips.filter(
@@ -68,7 +73,7 @@ export default function PayrollReportPage({
   )
   const paymentTotal = data.payments
     .filter((item) => item.periodId === periodId)
-    .reduce((sum, item) => sum + item.amount, 0)
+    .reduce((sum, item) => sum + paymentPaidAmount(item), 0)
   const reports = {
     'Monthly Payroll Report': {
       subtitle: 'Monthly headcount, gross earnings, deductions and net payroll at a glance.',
@@ -94,9 +99,19 @@ export default function PayrollReportPage({
       headers: ['Employee', 'Deduction breakdown', 'Total deductions', 'Net pay'],
     },
     'Payment Summary': {
-      subtitle: 'Reconcile payroll liability against recorded salary disbursements.',
+      subtitle: 'Compare payroll liability with confirmed, partial, and failed payment outcomes.',
       icon: Landmark,
-      headers: ['Employee', 'Payment reference', 'Method', 'Amount', 'Status'],
+      headers: [
+        'Employee',
+        'Instruction reference',
+        'Method',
+        'Instruction amount',
+        'Paid amount',
+        'Outcome date',
+        'Settlement reference',
+        'Failure reason',
+        'Status',
+      ],
     },
     'Employee Salary History': {
       subtitle: 'Compare finalized employee salary history across processed payroll periods.',
@@ -147,6 +162,10 @@ export default function PayrollReportPage({
               item.reference,
               item.method,
               item.amount,
+              paymentPaidAmount(item),
+              item.outcomeDate || '',
+              item.settlementReference || '',
+              item.failureReason || '',
               item.status,
             ])
           : page === 'Employee Salary History'
@@ -235,7 +254,7 @@ export default function PayrollReportPage({
           <Stat
             icon={Users}
             label="Employees processed"
-            value={batch?.employeeCount || 0}
+            value={new Set(slips.map((slip) => slip.employeeId)).size}
             tone="blue"
           />
           <Stat icon={BadgeDollarSign} label="Gross earnings" value={money(totals.gross)} />
@@ -255,21 +274,28 @@ export default function PayrollReportPage({
       )}
       {page === 'Payment Summary' && (
         <div className="pr-stats compact">
-          <Stat
-            icon={CircleDollarSign}
-            label="Payroll net liability"
-            value={money(batch?.net || 0)}
-          />
+          {paymentBatches.length > 0 && (
+            <Stat
+              icon={CircleDollarSign}
+              label="Payroll net liability"
+              value={money(paymentBatches.reduce((sum, item) => sum + item.net, 0))}
+            />
+          )}
           <Stat
             icon={Banknote}
-            label="Payments recorded"
+            label="Paid amount recorded"
             value={money(paymentTotal)}
             tone="green"
           />
           <Stat
             icon={Clock3}
             label="Unpaid balance"
-            value={money(Math.max(0, (batch?.net || 0) - paymentTotal))}
+            value={money(
+              paymentBatches.reduce(
+                (sum, item) => sum + batchOutstandingAmount(item, data.payments),
+                0,
+              ),
+            )}
             tone="amber"
           />
         </div>
@@ -311,10 +337,7 @@ export default function PayrollReportPage({
           )}
         </Card>
       ) : page === 'Payment Summary' ? (
-        <Card
-          title={`Payment instructions · ${data.payments.filter((item) => item.periodId === periodId).length}`}
-          icon={Landmark}
-        >
+        <Card title={`Payment attempts · ${paymentRows.length}`} icon={Landmark}>
           <Table headers={report.headers}>
             {data.payments
               .filter((item) => item.periodId === periodId)
@@ -324,6 +347,10 @@ export default function PayrollReportPage({
                   <td>{item.reference}</td>
                   <td>{item.method}</td>
                   <td>{money(item.amount)}</td>
+                  <td>{money(paymentPaidAmount(item))}</td>
+                  <td>{item.outcomeDate || '—'}</td>
+                  <td>{item.settlementReference || '—'}</td>
+                  <td>{item.failureReason || '—'}</td>
                   <td>
                     <Status>{item.status}</Status>
                   </td>

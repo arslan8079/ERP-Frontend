@@ -12,6 +12,7 @@ const routes = [
   { page: 'Warehouse Stock', category: 'warehouse-management', slug: 'warehouse-stock' },
   { page: 'Stock Opening', category: 'stock-operations', slug: 'stock-opening' },
   { page: 'Stock In (GRN)', category: 'stock-operations', slug: 'stock-in-grn' },
+  { page: 'Purchase Orders', category: 'stock-operations', slug: 'purchase-orders' },
   { page: 'Stock Out (Issue)', category: 'stock-operations', slug: 'stock-out-issue' },
   { page: 'Stock Transfer', category: 'stock-operations', slug: 'stock-transfer' },
   { page: 'Stock Adjustments', category: 'stock-operations', slug: 'stock-adjustments' },

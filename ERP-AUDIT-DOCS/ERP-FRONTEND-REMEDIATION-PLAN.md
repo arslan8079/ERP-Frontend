@@ -20,10 +20,10 @@ This is the single working tracker for findings consolidated from the four audit
 
 ## Overall status
 
-**Current phase:** P0 — Trust and core task completion  
+**Current phase:** P1 — Complete business lifecycles
 **Frontend freeze:** Not ready  
 **Backend work:** May start in parallel with frontend remediation  
-**Completed tasks:** 7 / 29
+**Completed tasks:** 8 / 29
 
 ## P0 — Trust and core task completion
 
@@ -125,26 +125,30 @@ This is the single working tracker for findings consolidated from the four audit
 
 ### P1-05 — Supplier purchasing, receipt and payable workflow
 
-- **Status:** Not started
-- **Acceptance:** Supplier/PO/GRN and bill matching can show expected vs received vs billed quantities/amounts and resolve discrepancies.
+- **Status:** Done — localStorage-backed P1-05 workflow; linked bills use the existing Finance posting flow.
+- **Acceptance:** **PASS — browser/UI:** Created a 10 L / PKR 20,000 purchase order, posted a linked partial GRN for 8 L / PKR 16,800, and posted a linked supplier bill for 8 L / PKR 16,000. The comparison showed ordered, received, and billed quantities/amounts and flagged the receipt-rate discrepancy. Recorded a review note, reloaded, and confirmed the bill and resolution persisted. Restored the pre-QA browser-storage baseline.
+- **Verification:** **PASS — code-level:** production build, diff check, and targeted formatting checks passed for the new procurement pages/store, GRN and supplier-bill pages, and icon/navigation edits. `Finance.jsx` and `Inventory.jsx` retain pre-existing formatting differences. **PASS — browser/UI:** exercised the full PO → partial GRN → bill → discrepancy review and persistence workflow in the local app.
 - **Audit refs:** Inventory/Finance integration findings.
 
 ### P1-06 — Stock-count exception lifecycle
 
-- **Status:** Not started
+- **Status:** Done — localStorage-backed frontend prototype; stock adjustments post only after approval.
 - **Acceptance:** Count can be resumed/recounted, variance resolved/approved and resulting adjustment/history viewed.
+- **Verification:** **PASS — browser/UI:** saved a partial four-batch count, reloaded, resumed with saved quantities, and verified incomplete submissions were blocked. Submitted a one-unit shortage; confirmed book stock remained unchanged pending approval, then approved it and verified the adjustment-out movement in count details. Recounted that result, recorded and approved a one-unit increase, and verified the linked adjustment-in history persisted after reload. Additional QA rejected a count variance, confirmed `Review required`, and completed a matching recount with no adjustment. Restored the pre-QA browser-storage baseline. **PASS — code-level:** production build, targeted formatting checks, and `git diff --check` passed.
 - **Audit refs:** Inventory lifecycle audit.
 
 ### P1-07 — HR employee lifecycle, leave and attendance corrections
 
-- **Status:** Not started
+- **Status:** Done — localStorage-backed frontend prototype; dated balance entries are manual and exit finalization requires completed clearance.
 - **Acceptance:** Employee exit/clearance, leave amend/withdraw/accrual and historical attendance correction have clear screens, state transitions and downstream context.
+- **Verification:** **PASS — browser/UI:** confirmed exit finalization is blocked until HR, Finance, IT, and Assets clearance items are complete; finalized employee became inactive and was excluded from new Payroll runs after reload. Added a dated +2-day leave accrual, edited and withdrew a pending request, amended an approved request, then approved its withdrawal and verified the balance returned to its prior value. Approved a historical attendance correction and verified the before/after status and review history; changed attendance before approving a second request and verified it became Stale without overwriting the newer status. Restored the pre-QA HR storage baseline. **PASS — code-level:** final production build, targeted Prettier checks, and `git diff --check` passed; build retains the existing >500 kB chunk warning.
 - **Audit refs:** HR lifecycle and CRUD audit.
 
 ### P1-08 — Payroll correction, variance, period and payment lifecycle
 
-- **Status:** Not started
+- **Status:** Done — localStorage-backed frontend prototype; payment outcomes and recovery resolutions are entered manually.
 - **Acceptance:** Run review shows calculation detail/variance; correction/reversal, period close/reopen and partial/failed payments have truthful transitions.
+- **Verification:** **PASS — browser/UI:** verified employee variance reasons block approval until entered; a positive adjustment completed review, payment, and settlement while the source batch remained intact; a negative adjustment created an explicit recovery due, blocked period close until an external resolution was recorded, and did not auto-deduct. Closed and reopened a period with a reason. Recorded partial and failed payment outcomes, retried only the remaining balances, and verified settlement. Reversed a finalized unpaid run with a reason, then regenerated it as revision 2; restored the pre-QA Payroll storage baseline. **PASS — code-level:** production build, targeted Prettier checks, and `git diff --check` passed; build retains the existing >500 kB chunk warning.
 - **Audit refs:** Payroll lifecycle audit.
 
 ### P1-09 — Finance document correction and master journeys
@@ -326,3 +330,5 @@ The current plan has no P3 section. These supplementary tasks follow the existin
 | 12 Nov 2026 | P0-05 | Exposed attendance/leave context and explicit exclusion from salary calculations pending policy confirmation. | Browser HR save and payroll generation/draft/review checks; final production build; `npm.cmd run format:check`; `git diff --check` | PASS |
 | 12 Nov 2026 | P0-06 | Added reopen/continue/save behavior for in-progress reconciliations. | Browser save/exit/reopen/match/complete with unmatched rows and difference; final production build; `npm.cmd run format:check`; `git diff --check` | PASS |
 | 12 Nov 2026 | P0-07 | Made payment instructions pending and report schedules explicitly planned, not executed. | Browser payment and schedule creation/reload checks; focused code checks; final production build; `npm.cmd run format:check`; `git diff --check` | PASS |
+| 12 Nov 2026 | P1-06 | Added resumable count drafts, recounts, variance approvals, and adjustment history. | Browser save/reload/resume/recount/approve/history checks; final `npm.cmd run build`; targeted Prettier checks; `git diff --check` | PASS |
+| 12 Nov 2026 | P1-07 | Added employee exit clearance, manual leave balance entries and request changes, and historical attendance corrections with stale-record protection. | Browser exit/Payroll handoff, accrual, leave edit/amend/withdraw, attendance approve/stale checks; restored HR storage baseline; final `npm.cmd run build`; targeted Prettier checks; `git diff --check` | PASS |

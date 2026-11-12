@@ -218,10 +218,14 @@ export default function EmployeeForm({
             </label>
             <label>
               <span>Employment status</span>
-              <select name="status" value={form.status} onChange={update}>
-                <option>Active</option>
-                <option>Inactive</option>
-              </select>
+              {editing ? (
+                <input readOnly value={form.status} />
+              ) : (
+                <select name="status" value={form.status} onChange={update}>
+                  <option>Active</option>
+                  <option>Inactive</option>
+                </select>
+              )}
             </label>
           </div>
         </Card>

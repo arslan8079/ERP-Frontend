@@ -24,6 +24,88 @@ export const idFor = (prefix) => `${prefix}-${Date.now()}-${String(++idSequence)
 export const activeEmployees = (employees) =>
   employees.filter((employee) => employee.status === 'Active')
 
+export function paymentPaidAmount(payment) {
+  if (payment.status === 'Paid')
+    return Math.max(0, Number(payment.paidAmount ?? payment.amount) || 0)
+  if (payment.status === 'Partially Paid') return Math.max(0, Number(payment.paidAmount) || 0)
+  return 0
+}
+
+export function employeePaidAmount(batchId, employeeId, payments) {
+  return payments
+    .filter((payment) => payment.batchId === batchId && payment.employeeId === employeeId)
+    .reduce((sum, payment) => sum + paymentPaidAmount(payment), 0)
+}
+
+export function employeeOutstandingAmount(batch, slip, payments) {
+  return Math.max(0, Number(slip.net) - employeePaidAmount(batch.id, slip.employeeId, payments))
+}
+
+export function batchOutstandingAmount(batch, payments) {
+  return batch.payslips.reduce(
+    (sum, slip) => sum + employeeOutstandingAmount(batch, slip, payments),
+    0,
+  )
+}
+
+export function batchRecoveryOutstanding(batch) {
+  return batch.payslips.reduce(
+    (sum, slip) => sum + (slip.recoveryResolution ? 0 : Number(slip.recoveryDue) || 0),
+    0,
+  )
+}
+
+export function batchIsSettled(batch, payments) {
+  return (
+    batch.payslips.every((slip) => employeeOutstandingAmount(batch, slip, payments) === 0) &&
+    batchRecoveryOutstanding(batch) === 0
+  )
+}
+
+export function periodCanClose(periodId, batches, payments) {
+  const activeBatches = batches.filter(
+    (batch) => batch.periodId === periodId && batch.status !== 'Reversed',
+  )
+  return (
+    activeBatches.length > 0 &&
+    activeBatches.every((batch) => batch.status === 'Paid' && batchIsSettled(batch, payments))
+  )
+}
+
+export function payrollVariances(batch, batches = []) {
+  if (Array.isArray(batch.variances)) return batch.variances
+  return batch.payslips.map((slip) => {
+    const previousBatch = batches
+      .filter(
+        (item) =>
+          item.status === 'Paid' &&
+          item.periodId < batch.periodId &&
+          item.payslips.some((previous) => previous.employeeId === slip.employeeId),
+      )
+      .sort((a, b) => b.periodId.localeCompare(a.periodId))[0]
+    const previousSlip = previousBatch?.payslips.find((item) => item.employeeId === slip.employeeId)
+    return {
+      employeeId: slip.employeeId,
+      employeeName: slip.employeeName,
+      previousBatchId: previousBatch?.id || '',
+      previousNet: previousSlip ? Number(previousSlip.net) : null,
+      currentNet: Number(slip.net) || 0,
+      varianceAmount: previousSlip ? Number(slip.net) - Number(previousSlip.net) : null,
+      reason: batch.varianceReasons?.[slip.employeeId] || '',
+    }
+  })
+}
+
+export function varianceRequiresReason(variance) {
+  return variance.varianceAmount === null || variance.varianceAmount !== 0
+}
+
+export function batchHasVarianceReasons(batch, batches = []) {
+  return payrollVariances(batch, batches).every(
+    (variance) => !varianceRequiresReason(variance) || String(variance.reason || '').trim(),
+  )
+}
+
 export function summarizePayrollBasis(periodId, employees = []) {
   const employeeIds = new Set(activeEmployees(employees).map((employee) => employee.id))
   const empty = {
@@ -52,6 +134,7 @@ export function summarizePayrollBasis(periodId, employees = []) {
     const approvedLeave = leaveRequests.filter(
       (item) =>
         item.status === 'Approved' &&
+        item.requestType !== 'Withdrawal' &&
         employeeIds.has(item.employeeId) &&
         (periodMatches(item.startDate) || periodMatches(item.endDate)),
     )
@@ -284,6 +367,15 @@ export function SalarySlip({ slip, batch, periodName }) {
             <span>Net salary</span>
             <b>{money(slip.net)}</b>
           </p>
+          {slip.recoveryDue > 0 && (
+            <p className="total">
+              <span>
+                Recovery due (not deducted automatically)
+                {slip.recoveryResolution ? ` · Resolved ${slip.recoveryResolution.date}` : ''}
+              </span>
+              <b>{money(slip.recoveryDue)}</b>
+            </p>
+          )}
         </div>
       </div>
     </section>

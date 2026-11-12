@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
-import { today } from './shared'
+import { idFor, leaveBalance, today } from './shared'
 import HumanResourceDashboard from './dashboard/HumanResourceDashboard'
 import EmployeeDirectory from './employee-management/EmployeeDirectory'
 import AddEmployee from './employee-management/AddEmployee'
 import EmployeeProfile from './employee-management/EmployeeProfile'
+import EmployeeExitClearance from './employee-management/EmployeeExitClearance'
 import EmployeeDocuments from './employee-management/EmployeeDocuments'
 import TransfersPromotions from './employee-management/TransfersPromotions'
 import EmployeeReports from './employee-management/EmployeeReports'
@@ -261,6 +262,8 @@ function createInitialData(sourceEmployees) {
     ],
     attendance,
     corrections: [],
+    exitCases: [],
+    leaveBalanceTransactions: [],
     leaveTypes,
     leaveRequests,
     shifts,
@@ -362,6 +365,9 @@ export default function HumanResourceModule({
       return onNotify('Name, email, and job title are required.')
     if (employees.some((item) => item.id !== existingId && item.email.toLowerCase() === email))
       return onNotify('Another employee already uses this email address.')
+    const existing = employees.find((item) => item.id === existingId)
+    if (existing && employee.status !== existing.status)
+      return onNotify('Use Employee Exit & Clearance to change employment status.')
     const saved = {
       ...employee,
       id:
@@ -369,7 +375,7 @@ export default function HumanResourceModule({
         `EMP-${String(Math.max(0, ...employees.map((item) => Number(item.id.replace('EMP-', '')) || 0)) + 1).padStart(3, '0')}`,
       name,
       email,
-      status: employee.status || 'Active',
+      status: existing?.status || employee.status || 'Active',
     }
     if (
       !updateData(
@@ -417,28 +423,133 @@ export default function HumanResourceModule({
     const request = data.leaveRequests.find((item) => item.id === requestId)
     if (!request || request.status !== 'Pending')
       return onNotify('This leave request has already been reviewed.')
-    if (status === 'Approved') {
-      const type = data.leaveTypes.find((item) => item.id === request.typeId)
-      const used = data.leaveRequests
-        .filter(
-          (item) =>
-            item.employeeId === request.employeeId &&
-            item.typeId === request.typeId &&
-            item.status === 'Approved',
+    if (!['Approved', 'Rejected'].includes(status))
+      return onNotify('Choose a valid leave review outcome.')
+    const original = request.originalRequestId
+      ? data.leaveRequests.find((item) => item.id === request.originalRequestId)
+      : null
+    if (request.requestType === 'Amendment' && original?.status !== 'Approved')
+      return onNotify('The original leave request is no longer approved; review the change again.')
+    if (request.requestType === 'Withdrawal' && original?.status !== 'Approved')
+      return onNotify(
+        'The original leave request is no longer approved; review the withdrawal again.',
+      )
+    if (status === 'Approved' && request.requestType !== 'Withdrawal') {
+      const available = leaveBalance(
+        data,
+        request.employeeId,
+        request.typeId,
+        request.startDate,
+        request.requestType === 'Amendment' ? request.originalRequestId : '',
+      )
+      if (request.days > available)
+        return onNotify(
+          `This request exceeds the employee’s available leave balance of ${Math.max(0, available)} day(s).`,
         )
-        .reduce((sum, item) => sum + item.days, 0)
-      if (!type || used + request.days > type.days) {
-        return onNotify('This request exceeds the employee’s available leave balance.')
-      }
     }
     updateData((current) => {
-      const nextRequests = current.leaveRequests.map((item) =>
-        item.id === requestId && item.status === 'Pending'
-          ? { ...item, status, reviewedAt: new Date().toISOString() }
-          : item,
-      )
+      const reviewedAt = new Date().toISOString()
+      const decisionHistory = {
+        id: idFor('LH'),
+        action: `${request.requestType || 'Leave'} ${status.toLowerCase()}`,
+        detail: request.changeReason || request.reason,
+        occurredAt: reviewedAt,
+      }
+      const nextRequests = current.leaveRequests.map((item) => {
+        if (item.id === requestId && item.status === 'Pending')
+          return {
+            ...item,
+            status,
+            reviewedAt,
+            history: [decisionHistory, ...(item.history || [])],
+          }
+        if (status !== 'Approved' || item.id !== request.originalRequestId) return item
+        if (request.requestType === 'Amendment')
+          return {
+            ...item,
+            status: 'Superseded',
+            supersededAt: reviewedAt,
+            supersededBy: requestId,
+            history: [
+              {
+                id: idFor('LH'),
+                action: 'Superseded by approved amendment',
+                detail: requestId,
+                occurredAt: reviewedAt,
+              },
+              ...(item.history || []),
+            ],
+          }
+        if (request.requestType === 'Withdrawal')
+          return {
+            ...item,
+            status: 'Withdrawn',
+            withdrawnAt: reviewedAt,
+            withdrawalRequestId: requestId,
+            history: [
+              {
+                id: idFor('LH'),
+                action: 'Withdrawal approved',
+                detail: request.changeReason || requestId,
+                occurredAt: reviewedAt,
+              },
+              ...(item.history || []),
+            ],
+          }
+        return item
+      })
       return { ...current, leaveRequests: nextRequests }
     }, `Leave request ${status.toLowerCase()}`)
+  }
+  const finalizeExit = (caseId) => {
+    const exitCase = data.exitCases.find((item) => item.id === caseId)
+    if (!exitCase || exitCase.status === 'Completed')
+      return onNotify('This exit case is no longer open.')
+    if (exitCase.effectiveDate > today())
+      return onNotify('The employee cannot be deactivated before the effective date.')
+    if (!exitCase.clearances.every((item) => item.status === 'Completed'))
+      return onNotify('Complete every clearance item before finalizing the exit.')
+    const employee = employees.find((item) => item.id === exitCase.employeeId)
+    if (!employee || employee.status !== 'Active')
+      return onNotify('The employee is no longer active; review the profile before finalizing.')
+    const completedAt = new Date().toISOString()
+    const updatedEmployee = {
+      ...employee,
+      status: 'Inactive',
+      employmentEndDate: exitCase.effectiveDate,
+      exitReason: exitCase.reason,
+      exitCaseId: exitCase.id,
+    }
+    if (
+      updateData(
+        (current) => ({
+          ...current,
+          employees: current.employees.map((item) =>
+            item.id === employee.id ? updatedEmployee : item,
+          ),
+          exitCases: current.exitCases.map((item) =>
+            item.id === caseId
+              ? {
+                  ...item,
+                  status: 'Completed',
+                  completedAt,
+                  history: [
+                    {
+                      id: idFor('EH'),
+                      action: 'Exit finalized',
+                      detail: `Employee set inactive effective ${exitCase.effectiveDate}.`,
+                      occurredAt: completedAt,
+                    },
+                    ...(item.history || []),
+                  ],
+                }
+              : item,
+          ),
+        }),
+        'Employee exit completed; employee is now inactive',
+      )
+    )
+      onEmployeesChange(updatedEmployee, employee.id)
   }
 
   const baseProps = {
@@ -482,6 +593,9 @@ export default function HumanResourceModule({
       break
     case 'Employee Profile':
       content = <EmployeeProfile {...baseProps} />
+      break
+    case 'Employee Exit & Clearance':
+      content = <EmployeeExitClearance {...baseProps} onFinalizeExit={finalizeExit} />
       break
     case 'Employee Documents':
       content = <EmployeeDocuments {...baseProps} />

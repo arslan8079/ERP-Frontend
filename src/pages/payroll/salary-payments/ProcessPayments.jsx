@@ -23,10 +23,13 @@ const {
   Callout,
   ExportButton,
   downloadCsv,
+  batchOutstandingAmount,
 } = Shared
 
 export default function ProcessPaymentsPage({ data, processPayments, periodName, onNavigate }) {
-  const batches = data.batches.filter((item) => item.status === 'Finalized')
+  const batches = data.batches.filter(
+    (item) => item.status === 'Finalized' && batchOutstandingAmount(item, data.payments) > 0,
+  )
   return (
     <>
       <PageHeader
@@ -45,7 +48,8 @@ export default function ProcessPaymentsPage({ data, processPayments, periodName,
             'Batch / period',
             'Employees',
             'Instruction method',
-            'Instruction amount',
+            'Outstanding balance',
+            'Pending instructions',
             'Status',
             'Action',
           ]}
@@ -59,27 +63,59 @@ export default function ProcessPaymentsPage({ data, processPayments, periodName,
               <td>{batch.employeeCount}</td>
               <td>Bank transfer instruction</td>
               <td>
-                <b>{money(batch.net)}</b>
+                <b>{money(batchOutstandingAmount(batch, data.payments))}</b>
               </td>
               <td>
-                <Status>Ready to record</Status>
+                {
+                  data.payments.filter(
+                    (payment) =>
+                      payment.batchId === batch.id &&
+                      payment.status === 'Pending bank confirmation',
+                  ).length
+                }
               </td>
               <td>
-                <Button kind="small" onClick={() => processPayments(batch.id)}>
+                <Status>
+                  {data.payments.some(
+                    (payment) =>
+                      payment.batchId === batch.id &&
+                      payment.status === 'Pending bank confirmation',
+                  )
+                    ? 'Instruction pending'
+                    : 'Ready to record'}
+                </Status>
+              </td>
+              <td>
+                <Button
+                  kind="small"
+                  disabled={data.payments.some(
+                    (payment) =>
+                      payment.batchId === batch.id &&
+                      payment.status === 'Pending bank confirmation',
+                  )}
+                  onClick={() => processPayments(batch.id)}
+                >
                   <Check size={13} />
-                  Create instructions
+                  Create / retry instructions
                 </Button>
               </td>
             </tr>
           ))}
         </Table>
         {!batches.length && (
-          <Empty>Finalize an approved payroll batch before recording payment instructions.</Empty>
+          <Empty>
+            Finalize a batch with an outstanding payable balance to record instructions.
+          </Empty>
         )}
       </Card>
       <Callout
         title="Payment controls"
-        text="This prototype records an instruction per employee only. It does not connect to a bank, execute transfers, or confirm settlement; batches remain finalized and unpaid until an external payment outcome is represented."
+        text="Instructions are recorded locally. Enter each employee's paid, partial, or failed result in Payment Records; retries cover only the remaining balance. No bank transfer is executed or confirmed here."
+        action={
+          <Button kind="secondary" onClick={() => onNavigate('Payment Records')}>
+            Open payment records
+          </Button>
+        }
       />
     </>
   )

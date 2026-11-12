@@ -40,15 +40,19 @@ const {
   Callout,
   ExportButton,
   downloadCsv,
+  batchOutstandingAmount,
 } = Shared
 
 export default function Dashboard({ data, employees, periodName, onNavigate }) {
   const currentId = monthKey()
-  const currentBatch = data.batches.find((item) => item.periodId === currentId)
+  const currentBatches = data.batches.filter(
+    (item) => item.periodId === currentId && item.status !== 'Reversed',
+  )
+  const currentBatch = currentBatches[0]
   const currentPeriod = data.periods.find((item) => item.id === currentId)
   const outstanding = data.batches
     .filter((batch) => batch.status === 'Finalized')
-    .reduce((sum, batch) => sum + batch.net, 0)
+    .reduce((sum, batch) => sum + batchOutstandingAmount(batch, data.payments), 0)
   const pendingAdvances = data.advances.filter((item) => item.status === 'Pending').length
   const quickLinks = [
     'Generate Payroll',
@@ -90,9 +94,13 @@ export default function Dashboard({ data, employees, periodName, onNavigate }) {
         <Stat
           icon={CircleDollarSign}
           label="Current net payroll"
-          value={money(currentBatch?.net || 0)}
+          value={money(currentBatches.reduce((sum, batch) => sum + batch.net, 0))}
           tone="green"
-          hint={currentBatch ? currentBatch.status : 'Not generated yet'}
+          hint={
+            currentBatch
+              ? `${currentBatches.length} run(s) · ${currentBatch.status}`
+              : 'Not generated yet'
+          }
         />
         <Stat
           icon={Clock3}
@@ -174,7 +182,9 @@ export default function Dashboard({ data, employees, periodName, onNavigate }) {
                         ? 'Finalize Payroll'
                         : currentBatch?.status === 'Finalized'
                           ? 'Process Payments'
-                          : 'Generate Payroll',
+                          : currentBatch?.status === 'Paid'
+                            ? 'Payroll History'
+                            : 'Payroll Periods',
                 )
               }
             >

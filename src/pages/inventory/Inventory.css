@@ -577,6 +577,14 @@
 .inv-count-card .inv-form-actions {
   margin: 0 13px 13px;
 }
+.inv-count-details {
+  display: grid;
+  gap: 8px;
+}
+.inv-count-details > b {
+  color: #264331;
+  font-size: 12px;
+}
 .inv-count-input {
   width: 120px;
   min-height: 30px !important;
