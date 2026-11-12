@@ -24,6 +24,64 @@ export const idFor = (prefix) => `${prefix}-${Date.now()}-${String(++idSequence)
 export const activeEmployees = (employees) =>
   employees.filter((employee) => employee.status === 'Active')
 
+export function summarizePayrollBasis(periodId, employees = []) {
+  const employeeIds = new Set(activeEmployees(employees).map((employee) => employee.id))
+  const empty = {
+    periodId,
+    employeesIncluded: employeeIds.size,
+    attendanceRecords: 0,
+    approvedLeaveDays: 0,
+    approvedLeaveRequests: 0,
+    sourceState: 'unavailable',
+    sourceText:
+      'HR attendance and leave records are not available for this pay period. These inputs are excluded from salary calculations pending policy confirmation.',
+    calculationPolicy:
+      'Salary calculations use active salary assignments and loan installments only. HR attendance and leave inputs are excluded pending policy confirmation.',
+  }
+  if (typeof window === 'undefined' || !window.localStorage) return empty
+  try {
+    const raw = window.localStorage.getItem('greenfield-human-resource-v1')
+    if (!raw) return empty
+    const hr = JSON.parse(raw)
+    const attendance = Array.isArray(hr.attendance) ? hr.attendance : []
+    const leaveRequests = Array.isArray(hr.leaveRequests) ? hr.leaveRequests : []
+    const periodMatches = (value) => typeof value === 'string' && value.slice(0, 7) === periodId
+    const periodAttendance = attendance.filter(
+      (item) => employeeIds.has(item.employeeId) && periodMatches(item.date),
+    )
+    const approvedLeave = leaveRequests.filter(
+      (item) =>
+        item.status === 'Approved' &&
+        employeeIds.has(item.employeeId) &&
+        (periodMatches(item.startDate) || periodMatches(item.endDate)),
+    )
+    const approvedLeaveDays = approvedLeave.reduce((sum, item) => sum + (Number(item.days) || 0), 0)
+    const attendancePresent = periodAttendance.filter((item) =>
+      ['Present', 'Late'].includes(item.status),
+    ).length
+    const sourceState =
+      periodAttendance.length || approvedLeave.length ? 'available' : 'unavailable'
+    return {
+      periodId,
+      employeesIncluded: employeeIds.size,
+      attendanceRecords: periodAttendance.length,
+      attendedRecords: attendancePresent,
+      approvedLeaveDays,
+      approvedLeaveRequests: approvedLeave.length,
+      sourceState,
+      sourceText:
+        sourceState === 'available'
+          ? `HR basis for ${periodId}: ${periodAttendance.length} attendance records and ${approvedLeaveDays} approved leave days across ${employeeIds.size} active employees. These inputs are visible for review but excluded from salary calculations pending policy confirmation.`
+          : `HR basis for ${periodId}: no approved attendance or leave records were found for the selected employees. Attendance and leave are excluded from salary calculations pending policy confirmation.`,
+      calculationPolicy:
+        'Salary calculations use active salary assignments and loan installments only. HR attendance and leave inputs are excluded pending policy confirmation.',
+    }
+  } catch (error) {
+    console.error('Unable to read payroll HR basis:', error)
+    return empty
+  }
+}
+
 let idSequence = 0
 
 export function calculateSalary(employee, assignment, structures, loans = []) {

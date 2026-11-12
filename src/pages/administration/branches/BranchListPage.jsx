@@ -138,9 +138,10 @@ export default function BranchListPage({
                       type="button"
                       aria-label={`Edit ${branch.name}`}
                       title="Edit branch"
-                      onClick={() =>
-                        onNotify(`Selected ${branch.code} · ${branch.name} for editing`)
-                      }
+                      onClick={() => {
+                        onSelectBranch(branch.code)
+                        onNavigate('Edit Branch')
+                      }}
                     >
                       <Pencil size={15} />
                     </button>

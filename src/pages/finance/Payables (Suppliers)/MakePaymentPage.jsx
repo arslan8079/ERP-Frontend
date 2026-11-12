@@ -19,7 +19,9 @@ import {
 
 function MakePaymentPage({ data, payBill, onNotify, onNavigate }) {
   const bills = openBills(data)
-  const accounts = data.accounts.filter((item) => ['Cash', 'Bank'].includes(item.control))
+  const accounts = data.accounts.filter(
+    (item) => ['Cash', 'Bank'].includes(item.control) && item.status === 'Active',
+  )
   const [form, setForm] = useState({
     billId: bills[0]?.id || '',
     accountId: accounts[0]?.id || '',

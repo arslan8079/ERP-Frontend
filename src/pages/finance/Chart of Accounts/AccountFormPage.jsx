@@ -11,26 +11,44 @@ import {
   Plus,
 } from '../financeShared'
 
-function AccountFormPage({ data, createAccount, onNotify, onNavigate }) {
-  const [form, setForm] = useState({
-    code: '',
-    name: '',
-    type: 'Asset',
-    group: 'Current Assets',
-    control: '',
-  })
+function AccountFormPage({
+  data,
+  createAccount,
+  saveAccount,
+  editingAccount,
+  setEditingAccountId,
+  accountClassificationLocked,
+  onNotify,
+  onNavigate,
+}) {
+  const [form, setForm] = useState(() => ({
+    code: editingAccount?.code || '',
+    name: editingAccount?.name || '',
+    type: editingAccount?.type || 'Asset',
+    group: editingAccount?.group || 'Current Assets',
+    control: editingAccount?.control || '',
+  }))
   const groups = typeGroups[form.type]
   const submit = (event) => {
     event.preventDefault()
     if (!/^\d{3,8}$/.test(form.code.trim()))
       return onNotify('Account code must contain 3 to 8 digits.')
-    createAccount({ ...form, group: groups.includes(form.group) ? form.group : groups[0] })
+    const values = { ...form, group: groups.includes(form.group) ? form.group : groups[0] }
+    const saved = editingAccount ? saveAccount(editingAccount.id, values) : createAccount(values)
+    if (saved && editingAccount) {
+      setEditingAccountId('')
+      onNavigate('Account Directory')
+    }
   }
   return (
     <>
       <PageHeader
-        title="Create Ledger Account"
-        subtitle="Add a uniquely coded account to the general ledger chart."
+        title={editingAccount ? 'Edit Ledger Account' : 'Create Ledger Account'}
+        subtitle={
+          editingAccount
+            ? 'Update account details without deleting or replacing the ledger record.'
+            : 'Add a uniquely coded account to the general ledger chart.'
+        }
         icon={Plus}
         action={
           <Button kind="secondary" onClick={() => onNavigate('Account Directory')}>
@@ -38,7 +56,7 @@ function AccountFormPage({ data, createAccount, onNotify, onNavigate }) {
           </Button>
         }
       />
-      <form className="fa-form-card" onSubmit={submit}>
+      <form className="fa-form-card" key={editingAccount?.id || 'new-account'} onSubmit={submit}>
         <h2>
           <BookOpen size={18} />
           Ledger account setup
@@ -49,6 +67,7 @@ function AccountFormPage({ data, createAccount, onNotify, onNavigate }) {
               required
               inputMode="numeric"
               pattern="[0-9]{3,8}"
+              disabled={Boolean(accountClassificationLocked)}
               value={form.code}
               onChange={(event) => setForm({ ...form, code: event.target.value })}
               placeholder="e.g. 5400"
@@ -65,6 +84,7 @@ function AccountFormPage({ data, createAccount, onNotify, onNavigate }) {
           </Field>
           <Field label="Account type">
             <select
+              disabled={Boolean(accountClassificationLocked)}
               value={form.type}
               onChange={(event) =>
                 setForm({
@@ -82,6 +102,7 @@ function AccountFormPage({ data, createAccount, onNotify, onNavigate }) {
           </Field>
           <Field label="Account group">
             <select
+              disabled={Boolean(accountClassificationLocked)}
               value={form.group}
               onChange={(event) => setForm({ ...form, group: event.target.value })}
             >
@@ -93,6 +114,7 @@ function AccountFormPage({ data, createAccount, onNotify, onNavigate }) {
           {form.type === 'Asset' && (
             <Field label="Control account">
               <select
+                disabled={Boolean(accountClassificationLocked)}
                 value={form.control}
                 onChange={(event) => setForm({ ...form, control: event.target.value })}
               >
@@ -105,10 +127,25 @@ function AccountFormPage({ data, createAccount, onNotify, onNavigate }) {
           )}
         </div>
         <div className="fa-form-actions">
-          <span>Codes must be unique. Accounts used in posted journals cannot be deleted.</span>
+          <span>
+            {accountClassificationLocked
+              ? 'Code and classification are locked because posted journals reference this account.'
+              : 'Codes must be unique. Accounts used in posted journals cannot be deleted.'}
+          </span>
+          {editingAccount && (
+            <Button
+              kind="secondary"
+              onClick={() => {
+                setEditingAccountId('')
+                onNavigate('Account Directory')
+              }}
+            >
+              Cancel
+            </Button>
+          )}
           <Button type="submit">
             <Check size={15} />
-            Create account
+            {editingAccount ? 'Save changes' : 'Create account'}
           </Button>
         </div>
       </form>

@@ -1,5 +1,5 @@
 import { Package, PackagePlus, ClipboardList } from 'lucide-react'
-import { Card, Table } from '../InventoryComponents'
+import { Card, MasterHistoryCard, Table } from '../InventoryComponents'
 
 export default function ProductListPage({ context }) {
   const {
@@ -77,6 +77,9 @@ export default function ProductListPage({ context }) {
             {tableRows}
           </Table>
         </Card>
+        <MasterHistoryCard
+          items={(data.masterHistory || []).filter((item) => item.entityType === 'Product')}
+        />
       </div>
     )
   })()

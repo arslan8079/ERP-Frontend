@@ -30,8 +30,8 @@ export default function ProcessPaymentsPage({ data, processPayments, periodName,
   return (
     <>
       <PageHeader
-        title="Process Payments"
-        subtitle="Record salary disbursements after payroll is finalized."
+        title="Record Payment Instructions"
+        subtitle="Create local payment instructions for finalized salaries. No bank transfer is executed or confirmed here."
         icon={Banknote}
         action={
           <Button kind="secondary" onClick={() => onNavigate('Payment Records')}>
@@ -39,13 +39,13 @@ export default function ProcessPaymentsPage({ data, processPayments, periodName,
           </Button>
         }
       />
-      <Card title={`Finalized batches ready to pay · ${batches.length}`} icon={Landmark}>
+      <Card title={`Finalized batches ready for instructions · ${batches.length}`} icon={Landmark}>
         <Table
           headers={[
             'Batch / period',
             'Employees',
-            'Payment method',
-            'Total disbursement',
+            'Instruction method',
+            'Instruction amount',
             'Status',
             'Action',
           ]}
@@ -57,29 +57,29 @@ export default function ProcessPaymentsPage({ data, processPayments, periodName,
                 <small className="pr-cell-sub">{periodName(batch.periodId)}</small>
               </td>
               <td>{batch.employeeCount}</td>
-              <td>Bank transfer</td>
+              <td>Bank transfer instruction</td>
               <td>
                 <b>{money(batch.net)}</b>
               </td>
               <td>
-                <Status>Ready</Status>
+                <Status>Ready to record</Status>
               </td>
               <td>
                 <Button kind="small" onClick={() => processPayments(batch.id)}>
                   <Check size={13} />
-                  Record payments
+                  Create instructions
                 </Button>
               </td>
             </tr>
           ))}
         </Table>
         {!batches.length && (
-          <Empty>Finalize an approved payroll batch before processing its payments.</Empty>
+          <Empty>Finalize an approved payroll batch before recording payment instructions.</Empty>
         )}
       </Card>
       <Callout
         title="Payment controls"
-        text="Processing records an individual payment reference for each employee and closes the period as paid. Payment records remain available for reconciliation."
+        text="This prototype records an instruction per employee only. It does not connect to a bank, execute transfers, or confirm settlement; batches remain finalized and unpaid until an external payment outcome is represented."
       />
     </>
   )

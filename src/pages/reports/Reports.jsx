@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Check, Download, FileBarChart, FileText } from 'lucide-react'
 import { Status } from './ReportsComponents'
+import { buildReportSchedule } from './reportSchedule'
 import ExecutiveOverviewPage from './dashboard/ExecutiveOverviewPage'
 import ReportsAnalyticsPage from './dashboard/ReportsAnalyticsPage'
 import SalesOverviewPage from './dashboard/SalesOverviewPage'
@@ -87,6 +88,7 @@ function sourceRows() {
       status: record.status || 'Recorded',
       amount: Number(record.amount) || 0,
       details: record.details || '',
+      isSample: Boolean(record.isSample),
     })
 
   ;(dealer.orders || []).forEach((item) =>
@@ -347,6 +349,7 @@ function sourceRows() {
       status: 'Pending',
       amount: 285000,
       details: 'Demo preview · Operations',
+      isSample: true,
     },
     {
       date: '2026-11-10',
@@ -356,6 +359,7 @@ function sourceRows() {
       subject: 'EMP-003 · Production',
       status: 'Present',
       details: 'Demo preview · Daily attendance',
+      isSample: true,
     },
     {
       date: '2026-11-10',
@@ -366,6 +370,7 @@ function sourceRows() {
       status: 'In Review',
       amount: 1842500,
       details: 'Demo preview · 20 employees',
+      isSample: true,
     },
     {
       date: '2026-11-09',
@@ -376,6 +381,7 @@ function sourceRows() {
       status: 'Outstanding',
       amount: 282800,
       details: 'Demo preview · Dealer receivable',
+      isSample: true,
     },
     {
       date: '2026-11-10',
@@ -386,6 +392,7 @@ function sourceRows() {
       status: 'Released',
       amount: 70300,
       details: 'Demo preview · Near-expiry lot',
+      isSample: true,
     },
     {
       date: '2026-11-10',
@@ -396,10 +403,13 @@ function sourceRows() {
       status: 'Pending Approval',
       amount: 111000,
       details: 'Demo preview · Credit review required',
+      isSample: true,
     },
   ]
   const representedModules = new Set(records.map((item) => item.module))
-  demoRecords.filter((item) => !representedModules.has(item.module)).forEach(push)
+  demoRecords
+    .filter((item) => !representedModules.has(item.module))
+    .forEach((item) => push({ ...item, isSample: true }))
   return records.filter((item) => item.date || item.reference !== '—')
 }
 
@@ -591,20 +601,11 @@ function ReportsModule({ page, onNotify, onNavigate }) {
     const values = Object.fromEntries(new FormData(event.currentTarget))
     if (!values.name.trim() || !values.recipient.trim())
       return onNotify('Enter a schedule name and recipient.')
-    const schedule = {
-      id: `SCH-${Date.now()}`,
-      name: values.name.trim(),
-      report: values.report,
-      frequency: values.frequency,
-      recipient: values.recipient.trim(),
-      nextRun: today(),
-      status: 'Active',
-      createdAt: new Date().toISOString(),
-    }
+    const schedule = buildReportSchedule(values, `SCH-${Date.now()}`, new Date().toISOString())
     if (
       saveSettings(
         { ...settings, schedules: [schedule, ...settings.schedules] },
-        'Report schedule created',
+        'Report schedule saved as a plan; no report was generated or delivered',
       )
     ) {
       setScheduleFormOpen(false)
@@ -620,59 +621,83 @@ function ReportsModule({ page, onNotify, onNavigate }) {
     title,
     items = filteredRows,
     empty = 'No matching records for the selected filters.',
-  ) => (
-    <section className="reports-card">
-      <header>
-        <span>
-          <FileText size={16} />
-          {title}
-        </span>
-        <small>{items.length.toLocaleString()} records</small>
-      </header>
-      <div className="reports-table-scroll">
-        <table className="reports-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Module</th>
-              <th>Type</th>
-              <th>Reference</th>
-              <th>Subject</th>
-              <th>Status</th>
-              <th>Amount</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length ? (
-              items.slice(0, 100).map((item, index) => (
-                <tr key={`${item.reference}-${index}`}>
-                  <td>{item.date || '—'}</td>
-                  <td>{item.module}</td>
-                  <td>{item.category}</td>
-                  <td>
-                    <b>{item.reference}</b>
-                  </td>
-                  <td>{item.subject}</td>
-                  <td>
-                    <Status>{item.status}</Status>
-                  </td>
-                  <td>{item.amount ? money(item.amount) : '—'}</td>
-                  <td>{item.details || '—'}</td>
-                </tr>
-              ))
-            ) : (
+  ) => {
+    const sampleRows = items.filter((item) => item.isSample)
+    const liveRows = items.filter((item) => !item.isSample)
+    const hasSampleRows = sampleRows.length > 0
+    const hasLiveRows = liveRows.length > 0
+    return (
+      <section className="reports-card">
+        <header>
+          <span>
+            <FileText size={16} />
+            {title}
+          </span>
+          <small>{items.length.toLocaleString()} records</small>
+        </header>
+        {hasSampleRows && (
+          <div className={`reports-sample-banner ${hasLiveRows ? 'mixed' : 'sample-only'}`}>
+            <span className="reports-sample-pill">Sample data</span>
+            {hasLiveRows
+              ? 'This report includes live ERP records and illustrative sample rows.'
+              : 'No live ERP records were found. This view is currently showing sample data only.'}
+          </div>
+        )}
+        <div className="reports-table-scroll">
+          <table className="reports-table">
+            <thead>
               <tr>
-                <td className="reports-empty" colSpan={8}>
-                  {empty}
-                </td>
+                <th>Date</th>
+                <th>Module</th>
+                <th>Type</th>
+                <th>Reference</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Amount</th>
+                <th>Details</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  )
+            </thead>
+            <tbody>
+              {items.length ? (
+                items.slice(0, 100).map((item, index) => (
+                  <tr key={`${item.reference}-${index}`}>
+                    <td>{item.date || '—'}</td>
+                    <td>{item.module}</td>
+                    <td>{item.category}</td>
+                    <td>
+                      <b>{item.reference}</b>
+                    </td>
+                    <td>
+                      {item.subject}
+                      {item.isSample && <span className="reports-sample-chip">Sample</span>}
+                    </td>
+                    <td>
+                      <Status>{item.status}</Status>
+                    </td>
+                    <td>{item.amount ? money(item.amount) : '—'}</td>
+                    <td>
+                      <span className="reports-details-cell">
+                        {item.details || '—'}
+                        {item.isSample && (
+                          <span className="reports-sample-inline">Illustrative</span>
+                        )}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="reports-empty" colSpan={8}>
+                    {empty}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )
+  }
   const stat = (label, value, note, Icon, tone = '') => (
     <article className={`reports-stat ${tone}`} key={label}>
       <span>

@@ -36,8 +36,7 @@ export default function OrderHistoryPage({ context }) {
     let rows = data.orders
     if (page === 'Pending Orders' || page === 'Approval Queue')
       rows = rows.filter((order) => order.status === 'Pending Approval')
-    if (page === 'Order History')
-      rows = rows.filter((order) => ['Delivered', 'Dispatched', 'Rejected'].includes(order.status))
+    if (page === 'Order History') rows = data.orders
     if (page === 'Territory Sales')
       rows = rows.filter((order) => {
         const dealer = data.dealers.find((item) => item.id === order.dealerId)
@@ -73,7 +72,9 @@ export default function OrderHistoryPage({ context }) {
         {header(
           page === 'Approval Queue' || page === 'Pending Orders'
             ? 'Review submitted orders and check dealer credit before approval.'
-            : 'Monitor dealer pesticide orders, status, value, territory and sales performance.',
+            : page === 'Order History'
+              ? 'Review order stages and open a record for its timeline, amendment, cancellation and decision reasons.'
+              : 'Monitor dealer pesticide orders, status, value, territory and sales performance.',
           page.includes('Report') || page.includes('Sales') || page === 'Dealer Performance'
             ? BarChart3
             : ShoppingCart,

@@ -74,6 +74,24 @@ export function Card({ title, icon: Icon = ClipboardList, children, action }) {
   )
 }
 
+export function MasterHistoryCard({ items = [] }) {
+  return (
+    <Card title={`Master-data change history · ${items.length}`} icon={ClipboardList}>
+      <Table headers={['Date', 'Record', 'Change', 'Details', 'User']}>
+        {items.slice(0, 20).map((item) => (
+          <tr key={item.id}>
+            <td>{item.date}</td>
+            <td>{item.entityName}</td>
+            <td>{item.action}</td>
+            <td>{item.details}</td>
+            <td>{item.actor || 'Admin'}</td>
+          </tr>
+        ))}
+      </Table>
+    </Card>
+  )
+}
+
 export function Table({ headers, children, empty = 'No records match this view.' }) {
   return (
     <div className="inv-table-wrap">
@@ -147,7 +165,10 @@ export function MovementType({ value }) {
   )
 }
 
-export function productRows(items, { stockFor, totalFor, setSelectedProductId, onNavigate }) {
+export function productRows(
+  items,
+  { stockFor, totalFor, setSelectedProductId, onNavigate, editProduct, toggleProductStatus },
+) {
   return items.map((item) => (
     <tr key={item.id}>
       <td>
@@ -191,6 +212,12 @@ export function productRows(items, { stockFor, totalFor, setSelectedProductId, o
         >
           Details <ArrowRight size={13} />
         </Button>
+        <Button kind="small secondary" onClick={() => editProduct(item.id)}>
+          Edit
+        </Button>
+        <Button kind="small secondary" onClick={() => toggleProductStatus(item.id)}>
+          {item.status === 'Active' ? 'Deactivate' : 'Reactivate'}
+        </Button>
       </td>
     </tr>
   ))
@@ -198,7 +225,18 @@ export function productRows(items, { stockFor, totalFor, setSelectedProductId, o
 
 export function batchRows(
   items,
-  { day, lookup, warehouse, product, setSearch, onNavigate, money },
+  {
+    day,
+    lookup,
+    warehouse,
+    product,
+    setSearch,
+    onNavigate,
+    money,
+    editBatch,
+    toggleBatchStatus,
+    canEditBatch,
+  },
 ) {
   return items.map((item) => {
     const remaining = Math.ceil(
@@ -241,6 +279,36 @@ export function batchRows(
         <td>{money(item.unitCost)}</td>
         <td>
           <Status>{item.quality}</Status>
+          <small>{item.receiptCondition || 'Receipt condition not recorded'}</small>
+          {item.qcInspectionId ? (
+            <>
+              <small>
+                QC {item.qcResult} · {item.qcDecision} · {item.qcInspectedAt}
+              </small>
+              <small>{item.qcReason}</small>
+            </>
+          ) : (
+            <small>No QC inspection record</small>
+          )}
+        </td>
+        <td>
+          <Status>{item.status || 'Active'}</Status>
+        </td>
+        <td>
+          <Button
+            kind="small secondary"
+            disabled={!canEditBatch(item)}
+            onClick={() => editBatch(item.id)}
+          >
+            Edit
+          </Button>
+          <Button
+            kind="small secondary"
+            disabled={Number(item.qty) > 0}
+            onClick={() => toggleBatchStatus(item.id)}
+          >
+            {item.status === 'Inactive' ? 'Reactivate' : 'Archive'}
+          </Button>
         </td>
       </tr>
     )

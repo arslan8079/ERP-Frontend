@@ -20,7 +20,9 @@ import {
 
 function ReceivePaymentPage({ data, receivePayment, onNotify, onNavigate }) {
   const invoices = openInvoices(data)
-  const accounts = data.accounts.filter((item) => ['Cash', 'Bank'].includes(item.control))
+  const accounts = data.accounts.filter(
+    (item) => ['Cash', 'Bank'].includes(item.control) && item.status === 'Active',
+  )
   const [form, setForm] = useState({
     invoiceId: invoices[0]?.id || '',
     accountId: accounts[0]?.id || '',

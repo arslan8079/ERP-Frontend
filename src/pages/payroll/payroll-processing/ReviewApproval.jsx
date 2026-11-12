@@ -105,6 +105,14 @@ export default function ReviewPage({ data, setBatchStatus, periodName, onNavigat
             {periodName(selected.periodId)} · Review each employee’s gross pay, deductions, and net
             salary before approval.
           </p>
+          <p className="pr-card-note">
+            <b>HR context:</b>{' '}
+            {selected.basis?.sourceText || 'No period HR basis was recorded for this batch.'}
+            <br />
+            <b>Calculation policy:</b>{' '}
+            {selected.basis?.calculationPolicy ||
+              'HR attendance/leave inputs are excluded pending policy confirmation.'}
+          </p>
           <PayslipTable slips={selected.payslips} />
         </Card>
       )}

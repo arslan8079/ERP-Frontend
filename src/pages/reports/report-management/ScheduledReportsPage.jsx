@@ -16,7 +16,7 @@ export default function ScheduledReportsPage({ context }) {
   return (
     <div className="reports-page">
       {pageHeader(
-        'Configure report delivery schedules for your operational, financial, and compliance teams.',
+        'Record planned report delivery details for your operational, financial, and compliance teams.',
         CalendarClock,
         {
           action: (
@@ -25,7 +25,7 @@ export default function ScheduledReportsPage({ context }) {
               onClick={() => setScheduleFormOpen((value) => !value)}
             >
               <Plus size={14} />
-              New schedule
+              New plan
             </button>
           ),
         },
@@ -60,7 +60,7 @@ export default function ScheduledReportsPage({ context }) {
           </label>
           <button className="reports-button">
             <Check size={14} />
-            Save schedule
+            Save plan
           </button>
         </form>
       )}
@@ -69,7 +69,7 @@ export default function ScheduledReportsPage({ context }) {
           <header>
             <span>
               <CalendarClock size={16} />
-              Delivery schedules
+              Planned report schedules
             </span>
             <small>{settings.schedules.length} configured</small>
           </header>
@@ -81,8 +81,8 @@ export default function ScheduledReportsPage({ context }) {
                   <th>Report</th>
                   <th>Frequency</th>
                   <th>Recipient</th>
-                  <th>Next run</th>
-                  <th>Status</th>
+                  <th>Execution</th>
+                  <th>Plan status</th>
                   <th />
                 </tr>
               </thead>
@@ -95,9 +95,9 @@ export default function ScheduledReportsPage({ context }) {
                     <td>{item.report}</td>
                     <td>{item.frequency}</td>
                     <td>{item.recipient}</td>
-                    <td>{item.nextRun}</td>
+                    <td>Not executed</td>
                     <td>
-                      <Status>{item.status}</Status>
+                      <Status>Planned (not executed)</Status>
                     </td>
                     <td>
                       <button
@@ -117,15 +117,15 @@ export default function ScheduledReportsPage({ context }) {
       ) : (
         <EmptyState
           title="No report schedules configured"
-          detail="Create a schedule to record who should receive recurring reports and how often."
+          detail="Create a delivery plan with its recipient and frequency. No report is generated or emailed."
           action={() => setScheduleFormOpen(true)}
           actionLabel="Create schedule"
         />
       )}
       <div className="reports-info-note">
         <CalendarClock size={16} />
-        Schedules are saved locally in this prototype; automatic email delivery requires a backend
-        scheduler.
+        Plans are saved locally in this prototype only. No schedule is executed and no email is
+        delivered; automatic report generation and delivery require a backend scheduler.
       </div>
     </div>
   )

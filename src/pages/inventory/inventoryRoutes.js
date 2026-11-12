@@ -26,6 +26,7 @@ const routes = [
   { page: 'Stock Reconciliation', category: 'stock-verification', slug: 'stock-reconciliation' },
   { page: 'Damaged Stock', category: 'stock-verification', slug: 'damaged-stock' },
   { page: 'Adjustment Approvals', category: 'stock-verification', slug: 'adjustment-approvals' },
+  { page: 'QC Inspections', category: 'stock-verification', slug: 'qc-inspections' },
   { page: 'Stock Summary', category: 'inventory-reports', slug: 'stock-summary' },
   { page: 'Warehouse-wise Stock', category: 'inventory-reports', slug: 'warehouse-wise-stock' },
   { page: 'Product Movement', category: 'inventory-reports', slug: 'product-movement' },

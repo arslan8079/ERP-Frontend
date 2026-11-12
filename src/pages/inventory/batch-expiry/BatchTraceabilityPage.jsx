@@ -37,6 +37,15 @@ export default function BatchTraceabilityPage({ context }) {
       !search ||
       `${item.batchNo} ${lookup(item.productId)}`.toLowerCase().includes(search.toLowerCase()),
   )
+  const batchIds = new Set(batchMatches.map((item) => item.id))
+  const inspections = (data.qcInspections || []).filter(
+    (item) =>
+      batchIds.has(item.batchId) &&
+      (!search ||
+        `${item.batchNo} ${lookup(item.productId)} ${item.reference} ${item.reason}`
+          .toLowerCase()
+          .includes(search.toLowerCase())),
+  )
 
   return (
     <div className="inv-page">
@@ -98,6 +107,35 @@ export default function BatchTraceabilityPage({ context }) {
       </Card>
       <Card title="Current lot locations & status" icon={Warehouse}>
         <Table headers={batchHeaders}>{batchRows(batchMatches)}</Table>
+      </Card>
+      <Card title={`QC inspection history · ${inspections.length}`} icon={FlaskConical}>
+        <Table
+          headers={[
+            'Date',
+            'Batch',
+            'Receipt reference',
+            'Receipt condition',
+            'Result',
+            'Decision',
+            'Reason',
+            'Inspector',
+          ]}
+        >
+          {inspections.map((item) => (
+            <tr key={item.id}>
+              <td>{item.date}</td>
+              <td>{item.batchNo}</td>
+              <td>{item.reference}</td>
+              <td>{item.receiptCondition}</td>
+              <td>{item.result}</td>
+              <td>
+                {item.decision} · {item.qualityAfter}
+              </td>
+              <td>{item.reason}</td>
+              <td>{item.inspector}</td>
+            </tr>
+          ))}
+        </Table>
       </Card>
     </div>
   )

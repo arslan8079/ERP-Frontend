@@ -112,8 +112,8 @@ export default function StockOpeningPage({ context }) {
         </div>
         <div className="inv-form-actions">
           <span>
-            GRN updates the batch ledger immediately; select quarantine when quality release is
-            pending.
+            Opening balances are treated as verified stock at entry; supplier receipts require a
+            separate QC inspection.
           </span>
           <div>
             <Button kind="secondary" onClick={() => onNavigate('Batch Register')}>

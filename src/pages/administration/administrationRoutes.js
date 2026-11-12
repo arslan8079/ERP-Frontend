@@ -4,6 +4,7 @@ const routes = [
   { page: 'Company Documents', category: 'company-management', slug: 'company-documents' },
   { page: 'Branch List', category: 'branches', slug: 'branch-list' },
   { page: 'Create Branch', category: 'branches', slug: 'create-branch' },
+  { page: 'Edit Branch', category: 'branches', slug: 'edit-branch' },
   { page: 'Branch Details', category: 'branches', slug: 'branch-details' },
   { page: 'Branch Settings', category: 'branches', slug: 'branch-settings' },
   { page: 'Branch Reports', category: 'branches', slug: 'branch-reports' },

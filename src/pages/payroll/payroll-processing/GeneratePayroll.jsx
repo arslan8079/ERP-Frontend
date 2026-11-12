@@ -9,6 +9,7 @@ const {
   idFor,
   activeEmployees,
   calculateSalary,
+  summarizePayrollBasis,
   PageHeader,
   Button,
   Stat,
@@ -49,11 +50,16 @@ export default function GeneratePayrollPage({
         data.structures.some((structure) => structure.id === row.structureId),
     ),
   ).length
+  const payrollBasis = summarizePayrollBasis(periodId || monthKey(), employees)
+  const basisText =
+    payrollBasis.sourceState === 'available'
+      ? `${payrollBasis.attendanceRecords} attendance entries · ${payrollBasis.approvedLeaveDays} approved leave days · ${payrollBasis.employeesIncluded} employees in scope`
+      : payrollBasis.sourceText
   return (
     <>
       <PageHeader
         title="Generate Payroll"
-        subtitle="Calculate monthly earnings, deductions and loan installments from approved salary assignments."
+        subtitle="Calculate monthly earnings, deductions and loan installments from approved salary assignments; HR attendance/leave is shown for review but excluded pending policy confirmation."
         icon={Coins}
       />
       <div className="pr-generate-layout">
@@ -79,12 +85,20 @@ export default function GeneratePayrollPage({
             <Field label="Estimated net payroll">
               <input readOnly value={money(estimate)} />
             </Field>
+            <Field label="HR payroll basis">
+              <input readOnly value={basisText} />
+            </Field>
             <Field label="Run basis">
-              <input readOnly value="Active salary assignments + loan installments" />
+              <input
+                readOnly
+                value={
+                  'Active salary assignments + loan installments; attendance/leave excluded pending policy'
+                }
+              />
             </Field>
           </div>
           <div className="pr-form-actions">
-            <span>Generation creates a draft only; it does not finalize or pay salaries.</span>
+            <span>{payrollBasis.calculationPolicy}</span>
             <Button
               disabled={!periodId || assignedCount !== employees.length}
               onClick={() => generatePayroll(periodId)}
@@ -102,6 +116,11 @@ export default function GeneratePayrollPage({
           <p>
             Generated drafts are routed to review. After approval, an authorized payroll user must
             finalize the batch before payment processing is enabled.
+          </p>
+          <p>
+            <strong>HR context:</strong> {basisText}
+            <br />
+            <strong>Calculation policy:</strong> {payrollBasis.calculationPolicy}
           </p>
           <Button kind="link" onClick={() => onNavigate('Payroll Drafts')}>
             View payroll drafts <ArrowRight size={14} />

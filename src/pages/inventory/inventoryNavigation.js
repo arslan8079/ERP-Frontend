@@ -43,6 +43,7 @@ export const inventoryGroups = [
       'Stock Reconciliation',
       'Damaged Stock',
       'Adjustment Approvals',
+      'QC Inspections',
     ],
   },
   {

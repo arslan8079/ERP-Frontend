@@ -8106,6 +8106,10 @@ tbody tr:hover {
   gap: 14px;
   padding: 0 22px;
 }
+.branch-header-actions {
+  position: relative;
+  z-index: 1;
+}
 .branch-list-banner-content h1 {
   margin: 0 0 2px;
   font-size: 21px;

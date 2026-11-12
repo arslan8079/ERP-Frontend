@@ -43,7 +43,8 @@ export default function FinalizePage({ data, finalizePayroll, periodName, onNavi
         <ShieldCheck size={19} />
         <span>
           <b>Finalization is a controlled step.</b> It locks the reviewed batch, posts loan
-          recoveries once, and enables salary payment processing.
+          recoveries once, and enables local payment-instruction recording. It does not execute or
+          confirm a bank transfer.
         </span>
       </div>
       <Card title={`Approved batches · ${batches.length}`} icon={CheckCircle2}>

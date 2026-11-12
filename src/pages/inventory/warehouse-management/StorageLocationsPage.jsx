@@ -1,5 +1,5 @@
 import { MapPin, Plus, ClipboardList } from 'lucide-react'
-import { Button, Field, Status, Card, Table } from '../InventoryComponents'
+import { Button, Field, MasterHistoryCard, Status, Card, Table } from '../InventoryComponents'
 
 export default function StorageLocationsPage({ context }) {
   const {
@@ -9,6 +9,9 @@ export default function StorageLocationsPage({ context }) {
     warehouseOptions,
     pageHeader,
     submitLocation,
+    editingLocation,
+    setEditingLocationId,
+    toggleLocationStatus,
     searchBox,
     tableExport,
   } = context
@@ -21,18 +24,37 @@ export default function StorageLocationsPage({ context }) {
         'Manage bin-level locations and safe segregation for pesticide formulations.',
         MapPin,
       )}
-      <form className="inv-inline-form" onSubmit={submitLocation}>
+      <form
+        className="inv-inline-form"
+        key={editingLocation?.id || 'new-location'}
+        onSubmit={submitLocation}
+      >
         <Field label="Warehouse" required>
-          <select name="warehouseId">{warehouseOptions}</select>
+          <select name="warehouseId" defaultValue={editingLocation?.warehouseId || undefined}>
+            {warehouseOptions}
+          </select>
         </Field>
         <Field label="Bin / location code" required>
-          <input name="code" placeholder="e.g. A-04-01" required />
+          <input
+            name="code"
+            defaultValue={editingLocation?.code || ''}
+            placeholder="e.g. A-04-01"
+            required
+          />
         </Field>
         <Field label="Storage zone / conditions" required>
-          <input name="zone" placeholder="Cool, dry, ventilated, locked cabinet…" required />
+          <input
+            name="zone"
+            defaultValue={editingLocation?.zone || ''}
+            placeholder="Cool, dry, ventilated, locked cabinet…"
+            required
+          />
         </Field>
         <Field label="Storage classification" required>
-          <select name="type">
+          <select
+            name="type"
+            defaultValue={editingLocation?.type || 'Pesticide · controlled access'}
+          >
             <option>Pesticide · controlled access</option>
             <option>Powder · cool and dry</option>
             <option>Flammable · ventilated cabinet</option>
@@ -41,12 +63,23 @@ export default function StorageLocationsPage({ context }) {
           </select>
         </Field>
         <Field label="Capacity (base units)" required>
-          <input name="capacity" type="number" min="1" required />
+          <input
+            name="capacity"
+            type="number"
+            min="1"
+            defaultValue={editingLocation?.capacity || ''}
+            required
+          />
         </Field>
         <Button type="submit">
           <Plus size={15} />
-          Add location
+          {editingLocation ? 'Save changes' : 'Add location'}
         </Button>
+        {editingLocation && (
+          <Button kind="secondary" onClick={() => setEditingLocationId('')}>
+            Cancel edit
+          </Button>
+        )}
       </form>
       {(() => {
         const config = {
@@ -61,6 +94,8 @@ export default function StorageLocationsPage({ context }) {
             'Classification',
             'Capacity',
             'Stock',
+            'Status',
+            '',
           ],
           items: filtered(
             data.locations,
@@ -87,6 +122,17 @@ export default function StorageLocationsPage({ context }) {
                       batch.warehouseId === item.warehouseId && batch.location === item.code,
                   )
                   .reduce((sum, batch) => sum + Number(batch.qty), 0)}
+              </td>
+              <td>
+                <Status>{item.status || 'Active'}</Status>
+              </td>
+              <td>
+                <Button kind="small secondary" onClick={() => setEditingLocationId(item.id)}>
+                  Edit
+                </Button>
+                <Button kind="small secondary" onClick={() => toggleLocationStatus(item.id)}>
+                  {item.status === 'Inactive' ? 'Reactivate' : 'Deactivate'}
+                </Button>
               </td>
             </tr>
           )),
@@ -122,6 +168,9 @@ export default function StorageLocationsPage({ context }) {
                 {tableRows}
               </Table>
             </Card>
+            <MasterHistoryCard
+              items={(data.masterHistory || []).filter((item) => item.entityType === 'Location')}
+            />
           </div>
         )
       })()}

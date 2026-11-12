@@ -26,7 +26,14 @@ const {
   downloadCsv,
 } = Shared
 
-export default function ComponentsPage({ data, createComponent, onNotify }) {
+export default function ComponentsPage({
+  data,
+  createComponent,
+  saveComponent,
+  toggleComponentStatus,
+  onNotify,
+}) {
+  const [editingComponentId, setEditingComponentId] = useState('')
   const [form, setForm] = useState({
     name: '',
     type: 'Allowance',
@@ -36,10 +43,21 @@ export default function ComponentsPage({ data, createComponent, onNotify }) {
   })
   const submit = (event) => {
     event.preventDefault()
-    if (data.components.some((item) => item.name.toLowerCase() === form.name.trim().toLowerCase()))
+    if (
+      data.components.some(
+        (item) =>
+          item.id !== editingComponentId &&
+          item.name.toLowerCase() === form.name.trim().toLowerCase(),
+      )
+    )
       return onNotify('A payroll component with this name already exists.')
-    createComponent({ ...form, name: form.name.trim() })
-    setForm({ name: '', type: 'Allowance', calculation: 'Fixed', amount: 0, taxable: true })
+    const saved = editingComponentId
+      ? saveComponent(editingComponentId, { ...form, name: form.name.trim() })
+      : createComponent({ ...form, name: form.name.trim() })
+    if (saved) {
+      setEditingComponentId('')
+      setForm({ name: '', type: 'Allowance', calculation: 'Fixed', amount: 0, taxable: true })
+    }
   }
   return (
     <>
@@ -48,7 +66,10 @@ export default function ComponentsPage({ data, createComponent, onNotify }) {
         subtitle="Maintain standard payroll earning and deduction components."
         icon={Coins}
       />
-      <Card title="Add payroll component" icon={Plus}>
+      <Card
+        title={editingComponentId ? 'Edit payroll component' : 'Add payroll component'}
+        icon={Plus}
+      >
         <form className="pr-inline-form" onSubmit={submit}>
           <Field label="Component name">
             <input
@@ -93,15 +114,40 @@ export default function ComponentsPage({ data, createComponent, onNotify }) {
             />
             Taxable
           </label>
+          {editingComponentId && (
+            <Button
+              kind="secondary"
+              onClick={() => {
+                setEditingComponentId('')
+                setForm({
+                  name: '',
+                  type: 'Allowance',
+                  calculation: 'Fixed',
+                  amount: 0,
+                  taxable: true,
+                })
+              }}
+            >
+              Cancel
+            </Button>
+          )}
           <Button type="submit">
             <Plus size={15} />
-            Add component
+            {editingComponentId ? 'Save changes' : 'Add component'}
           </Button>
         </form>
       </Card>
       <Card title={`Component register · ${data.components.length}`} icon={ListChecks}>
         <Table
-          headers={['Component', 'Type', 'Calculation', 'Default value', 'Tax treatment', 'Status']}
+          headers={[
+            'Component',
+            'Type',
+            'Calculation',
+            'Default value',
+            'Tax treatment',
+            'Status',
+            'Actions',
+          ]}
         >
           {data.components.map((item) => (
             <tr key={item.id}>
@@ -118,8 +164,43 @@ export default function ComponentsPage({ data, createComponent, onNotify }) {
               <td>
                 <Status>{item.status}</Status>
               </td>
+              <td>
+                <button
+                  className="pr-link"
+                  onClick={() => {
+                    setEditingComponentId(item.id)
+                    setForm({
+                      name: item.name,
+                      type: item.type,
+                      calculation: item.calculation,
+                      amount: item.amount,
+                      taxable: Boolean(item.taxable),
+                    })
+                  }}
+                >
+                  Edit
+                </button>
+                <button className="pr-link" onClick={() => toggleComponentStatus(item.id)}>
+                  {item.status === 'Active' ? 'Deactivate' : 'Reactivate'}
+                </button>
+              </td>
             </tr>
           ))}
+        </Table>
+      </Card>
+      <Card title="Payroll component change history" icon={ListChecks}>
+        <Table headers={['Date', 'Component', 'Change', 'Details']}>
+          {(data.masterHistory || [])
+            .filter((item) => item.entityType === 'Payroll component')
+            .slice(0, 20)
+            .map((item) => (
+              <tr key={item.id}>
+                <td>{item.date}</td>
+                <td>{item.entityName}</td>
+                <td>{item.action}</td>
+                <td>{item.details}</td>
+              </tr>
+            ))}
         </Table>
       </Card>
       <Callout

@@ -1,9 +1,19 @@
 import { ArrowRight, Warehouse, ClipboardList } from 'lucide-react'
-import { Button, Status, Card, Table } from '../InventoryComponents'
+import { Button, MasterHistoryCard, Status, Card, Table } from '../InventoryComponents'
 
 export default function WarehouseListPage({ context }) {
-  const { onNavigate, data, setSearch, filtered, newAction, pageHeader, searchBox, tableExport } =
-    context
+  const {
+    onNavigate,
+    data,
+    setSearch,
+    filtered,
+    newAction,
+    pageHeader,
+    searchBox,
+    tableExport,
+    editWarehouse,
+    toggleWarehouseStatus,
+  } = context
   const page = 'Warehouse List'
 
   return (() => {
@@ -19,7 +29,7 @@ export default function WarehouseListPage({ context }) {
         'Capacity',
         'On-hand lines',
         'Status',
-        '',
+        'Actions',
       ],
       items: filtered(
         data.warehouses,
@@ -52,6 +62,12 @@ export default function WarehouseListPage({ context }) {
               <Status>{item.status}</Status>
             </td>
             <td>
+              <Button kind="small secondary" onClick={() => editWarehouse(item.id)}>
+                Edit
+              </Button>
+              <Button kind="small secondary" onClick={() => toggleWarehouseStatus(item.id)}>
+                {item.status === 'Active' ? 'Deactivate' : 'Reactivate'}
+              </Button>
               <Button
                 kind="small secondary"
                 onClick={() => {
@@ -97,6 +113,9 @@ export default function WarehouseListPage({ context }) {
             {tableRows}
           </Table>
         </Card>
+        <MasterHistoryCard
+          items={(data.masterHistory || []).filter((item) => item.entityType === 'Warehouse')}
+        />
       </div>
     )
   })()

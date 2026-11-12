@@ -12,25 +12,29 @@ import {
   GitBranch,
 } from 'lucide-react'
 
-export default function CreateBranchPage({ branches, onNavigate, onCreateBranch }) {
-  const [branchName, setBranchName] = useState('')
-  const [city, setCity] = useState('')
-  const [province, setProvince] = useState('Punjab')
-  const [manager, setManager] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [address, setAddress] = useState('')
-  const [status, setStatus] = useState('Active')
+export default function CreateBranchPage({
+  branches,
+  onNavigate,
+  onCreateBranch,
+  onUpdateBranch,
+  branch,
+}) {
+  const isEditMode = Boolean(branch)
+  const [branchName, setBranchName] = useState(branch?.name || '')
+  const [city, setCity] = useState(branch?.location?.split(',')[0]?.trim() || '')
+  const [province, setProvince] = useState(branch?.location?.split(',')[1]?.trim() || 'Punjab')
+  const [manager, setManager] = useState(branch?.manager || '')
+  const [phone, setPhone] = useState(branch?.phone || '')
+  const [email, setEmail] = useState(branch?.email || '')
+  const [address, setAddress] = useState(branch?.address || '')
+  const [status, setStatus] = useState(branch?.status || 'Active')
   const nextNumber =
-    branches.reduce(
-      (max, branch) => Math.max(max, Number(branch.code.replace('BR-', '')) || 0),
-      0,
-    ) + 1
-  const branchCode = `BR-${String(nextNumber).padStart(3, '0')}`
+    branches.reduce((max, item) => Math.max(max, Number(item.code.replace('BR-', '')) || 0), 0) + 1
+  const branchCode = branch?.code || `BR-${String(nextNumber).padStart(3, '0')}`
 
   const submitBranch = (event) => {
     event.preventDefault()
-    onCreateBranch({
+    const normalizedBranch = {
       name: branchName.trim(),
       location: `${city.trim()}, ${province}`,
       manager: manager.trim(),
@@ -38,8 +42,13 @@ export default function CreateBranchPage({ branches, onNavigate, onCreateBranch 
       email: email.trim(),
       address: address.trim(),
       status,
-      employees: 0,
-    })
+      employees: branch?.employees || 0,
+    }
+    if (isEditMode) {
+      onUpdateBranch(branch.code, normalizedBranch)
+      return
+    }
+    onCreateBranch(normalizedBranch)
   }
 
   return (
@@ -49,17 +58,21 @@ export default function CreateBranchPage({ branches, onNavigate, onCreateBranch 
         <div className="branch-list-banner-content">
           <Building2 size={39} strokeWidth={2.2} />
           <div>
-            <h1>Create Branch</h1>
-            <p>Add a new location to your company network</p>
+            <h1>{isEditMode ? 'Edit Branch' : 'Create Branch'}</h1>
+            <p>
+              {isEditMode
+                ? 'Update branch details and maintain the current company network.'
+                : 'Add a new location to your company network'}
+            </p>
           </div>
         </div>
         <button
           type="button"
           className="branch-back-button"
-          onClick={() => onNavigate('Branch List')}
+          onClick={() => onNavigate(isEditMode ? 'Branch Details' : 'Branch List')}
         >
           <ArrowLeft size={16} />
-          Branch List
+          {isEditMode ? 'Branch Details' : 'Branch List'}
         </button>
       </header>
       <div className="branch-create-layout">
@@ -90,7 +103,7 @@ export default function CreateBranchPage({ branches, onNavigate, onCreateBranch 
             <label className="branch-form-field">
               <span>Branch Code</span>
               <input value={branchCode} readOnly aria-readonly="true" />
-              <small>Generated automatically</small>
+              <small>{isEditMode ? 'Current branch identifier' : 'Generated automatically'}</small>
             </label>
             <label className="branch-form-field">
               <span>
@@ -198,13 +211,13 @@ export default function CreateBranchPage({ branches, onNavigate, onCreateBranch 
               <button
                 type="button"
                 className="branch-cancel-button"
-                onClick={() => onNavigate('Branch List')}
+                onClick={() => onNavigate(isEditMode ? 'Branch Details' : 'Branch List')}
               >
                 Cancel
               </button>
               <button type="submit" className="branch-save-button">
                 <Check size={17} />
-                Create Branch
+                {isEditMode ? 'Save Changes' : 'Create Branch'}
               </button>
             </div>
           </div>
@@ -215,16 +228,20 @@ export default function CreateBranchPage({ branches, onNavigate, onCreateBranch 
               <Info size={17} />
               <h3>Before you create</h3>
             </div>
-            <p>Branch codes are assigned automatically and cannot be changed after creation.</p>
+            <p>
+              {isEditMode
+                ? 'Branch identity and contact details are updated in place and kept traceable.'
+                : 'Branch codes are assigned automatically and cannot be changed after creation.'}
+            </p>
             <p>Inactive branches remain in your records and can be reactivated at any time.</p>
           </section>
           <section className="branch-create-preview">
-            <span>NEW BRANCH CODE</span>
+            <span>{isEditMode ? 'CURRENT BRANCH CODE' : 'NEW BRANCH CODE'}</span>
             <strong>
               <GitBranch size={16} />
               {branchCode}
             </strong>
-            <small>Next available code</small>
+            <small>{isEditMode ? 'Branch identifier' : 'Next available code'}</small>
           </section>
         </aside>
       </div>

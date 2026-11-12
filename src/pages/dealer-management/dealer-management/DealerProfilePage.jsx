@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { Pencil, History } from 'lucide-react'
+
 export default function DealerProfilePage({ context }) {
   const {
     onNavigate,
@@ -16,8 +19,12 @@ export default function DealerProfilePage({ context }) {
     territoryName,
     officerName,
     dueFor,
+    updateDealer,
+    toggleDealerStatus,
   } = context
   const page = 'Dealer Profile'
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(null)
 
   if (page === 'Dealer Profile') {
     if (!selectedDealer)
@@ -55,8 +62,74 @@ export default function DealerProfilePage({ context }) {
           <div className="dealer-profile-status">
             {status(selectedDealer.status)}
             <small>Verified: {selectedDealer.verification}</small>
+            <button
+              className="dealer-button secondary"
+              onClick={() => {
+                setDraft({ ...selectedDealer })
+                setEditing(true)
+              }}
+            >
+              <Pencil size={14} /> Edit profile
+            </button>
+            {['Active', 'Inactive'].includes(selectedDealer.status) && (
+              <button
+                className="dealer-button secondary"
+                disabled={selectedDealer.verification !== 'Verified'}
+                onClick={() => toggleDealerStatus(selectedDealer.id)}
+              >
+                {selectedDealer.status === 'Active' ? 'Deactivate' : 'Reactivate'}
+              </button>
+            )}
           </div>
         </div>
+        {editing && draft && (
+          <form
+            className="dealer-form-card"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (updateDealer(selectedDealer.id, draft)) setEditing(false)
+            }}
+          >
+            <div className="dealer-form-heading">
+              <span>Edit dealer profile · {selectedDealer.id}</span>
+              <small>Existing orders and account history are retained.</small>
+            </div>
+            <div className="dealer-form-grid">
+              {[
+                ['name', 'Dealer name', 'text'],
+                ['owner', 'Owner / contact', 'text'],
+                ['email', 'Email', 'email'],
+                ['phone', 'Phone', 'tel'],
+                ['city', 'City', 'text'],
+                ['category', 'Category', 'text'],
+                ['creditLimit', 'Credit limit (PKR)', 'number'],
+              ].map(([key, label, type]) => (
+                <label className="dealer-field" key={key}>
+                  <span>{label}</span>
+                  <input
+                    type={type}
+                    min={key === 'creditLimit' ? '0' : undefined}
+                    value={draft[key] ?? ''}
+                    required={key !== 'email'}
+                    onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
+                  />
+                </label>
+              ))}
+            </div>
+            <footer>
+              <button
+                type="button"
+                className="dealer-button secondary"
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="dealer-button">
+                Save profile
+              </button>
+            </footer>
+          </form>
+        )}
         <div className="dealer-profile-grid">
           <section className="dealer-card">
             <header>
@@ -158,6 +231,30 @@ export default function DealerProfilePage({ context }) {
               </tr>
             )),
         )}
+        <section className="dealer-card">
+          <header>
+            <span>
+              <History size={16} />
+              Dealer change history
+            </span>
+          </header>
+          {data.history.filter((item) => item.dealerId === selectedDealer.id).length ? (
+            <div className="dealer-history-list">
+              {data.history
+                .filter((item) => item.dealerId === selectedDealer.id)
+                .slice(0, 10)
+                .map((item) => (
+                  <div key={item.id}>
+                    <b>{item.type}</b>
+                    <span>{item.details}</span>
+                    <small>{item.date}</small>
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <p className="dealer-empty-panel">No dealer changes have been recorded.</p>
+          )}
+        </section>
       </div>
     )
   }

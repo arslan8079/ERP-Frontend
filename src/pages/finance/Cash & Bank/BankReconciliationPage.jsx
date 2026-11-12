@@ -20,10 +20,11 @@ import {
 } from '../financeShared'
 
 function BankReconciliationPage({ data, createReconciliation, onNotify }) {
-  const banks = data.accounts.filter((item) => item.control === 'Bank')
+  const banks = data.accounts.filter((item) => item.control === 'Bank' && item.status === 'Active')
   const [accountId, setAccountId] = useState(banks[0]?.id || '')
   const [periodId, setPeriodId] = useState(monthKey())
   const [statementBalance, setStatementBalance] = useState('')
+  const [resumeId, setResumeId] = useState('')
   const entryLines = data.entries
     .filter((entry) => entry.status === 'Posted' && entry.date.slice(0, 7) === periodId)
     .flatMap((entry) => entry.lines.map((line, index) => ({ ...line, entry, index })))
@@ -39,12 +40,36 @@ function BankReconciliationPage({ data, createReconciliation, onNotify }) {
     setMatchedKeys((current) =>
       current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
     )
-  const submit = (event) => {
+  const reopen = (item) => {
+    setAccountId(item.accountId)
+    setPeriodId(item.periodId)
+    setStatementBalance(String(item.statementBalance))
+    setMatchedKeys(item.matchedKeys || [])
+    setResumeId(item.id)
+  }
+  const saveProgress = (event, finalize = false) => {
     event.preventDefault()
     if (!accountId || statementBalance === '' || !Number.isFinite(Number(statementBalance)))
       return onNotify('Choose a bank account and enter the statement closing balance.')
-    createReconciliation({ accountId, periodId, statementBalance, matchedKeys })
+    const nextId = createReconciliation({
+      accountId,
+      periodId,
+      statementBalance,
+      matchedKeys,
+      resumeId: resumeId || undefined,
+      finalize,
+    })
+    if (nextId) {
+      setResumeId(nextId)
+      if (finalize) {
+        setMatchedKeys([])
+      }
+    }
+  }
+  const resetDraft = () => {
+    setResumeId('')
     setMatchedKeys([])
+    setStatementBalance('')
   }
   return (
     <>
@@ -54,7 +79,7 @@ function BankReconciliationPage({ data, createReconciliation, onNotify }) {
         icon={ClipboardCheck}
       />
       <Card title="Statement reconciliation" icon={Landmark}>
-        <form onSubmit={submit}>
+        <form>
           <div className="fa-form-grid">
             <Field label="Bank account">
               <select
@@ -62,6 +87,7 @@ function BankReconciliationPage({ data, createReconciliation, onNotify }) {
                 value={accountId}
                 onChange={(event) => {
                   setAccountId(event.target.value)
+                  setResumeId('')
                   setMatchedKeys([])
                 }}
               >
@@ -79,6 +105,7 @@ function BankReconciliationPage({ data, createReconciliation, onNotify }) {
                 value={periodId}
                 onChange={(event) => {
                   setPeriodId(event.target.value)
+                  setResumeId('')
                   setMatchedKeys([])
                 }}
               />
@@ -126,9 +153,24 @@ function BankReconciliationPage({ data, createReconciliation, onNotify }) {
               {entryLines.length} uncleared ledger line(s) in {monthLabel(periodId)}. Select
               statement-matched transactions.
             </span>
-            <Button type="submit" disabled={!banks.length}>
+            <Button type="button" kind="secondary" onClick={resetDraft}>
+              New draft
+            </Button>
+            <Button
+              type="button"
+              onClick={(event) => saveProgress(event, false)}
+              disabled={!banks.length}
+            >
               <Check size={15} />
-              Save reconciliation
+              Save progress
+            </Button>
+            <Button
+              type="button"
+              onClick={(event) => saveProgress(event, true)}
+              disabled={!banks.length}
+            >
+              <Check size={15} />
+              Complete reconciliation
             </Button>
           </div>
         </form>
@@ -173,6 +215,7 @@ function BankReconciliationPage({ data, createReconciliation, onNotify }) {
             'Book balance',
             'Difference',
             'Status',
+            'Action',
           ]}
         >
           {data.reconciliations.map((item) => (
@@ -187,6 +230,13 @@ function BankReconciliationPage({ data, createReconciliation, onNotify }) {
               <td>{money(item.difference)}</td>
               <td>
                 <Status>{item.status}</Status>
+              </td>
+              <td>
+                {item.status === 'In Progress' && (
+                  <button type="button" className="fa-link" onClick={() => reopen(item)}>
+                    Reopen
+                  </button>
+                )}
               </td>
             </tr>
           ))}

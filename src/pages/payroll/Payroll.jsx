@@ -1,5 +1,14 @@
 import { useMemo, useRef, useState } from 'react'
-import { today, monthKey, monthLabel, idFor, activeEmployees, calculateSalary } from './shared'
+import { buildPaymentInstructions } from './paymentInstructions'
+import {
+  today,
+  monthKey,
+  monthLabel,
+  idFor,
+  activeEmployees,
+  calculateSalary,
+  summarizePayrollBasis,
+} from './shared'
 import PayrollDashboard from './dashboard/PayrollDashboard'
 import SalaryStructures from './salary-configuration/SalaryStructures'
 import CreateSalaryStructure from './salary-configuration/CreateSalaryStructure'
@@ -138,6 +147,7 @@ function initialData(sourceEmployees) {
   return {
     structures,
     components,
+    masterHistory: [],
     assignments,
     periods: [
       { id: currentPeriod, status: 'Open' },
@@ -176,6 +186,7 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
   const [data, setData] = useState(() => loadData(sourceEmployees))
   const dataRef = useRef(data)
   const [employeeSearch, setEmployeeSearch] = useState('')
+  const [editingStructureId, setEditingStructureId] = useState('')
   const employees = activeEmployees(sourceEmployees)
   const employeeName = (id) =>
     sourceEmployees.find((item) => item.id === id)?.name || 'Unknown employee'
@@ -200,6 +211,17 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
     updateData(
       (current) => ({
         ...current,
+        masterHistory: [
+          {
+            id: idFor('PMH'),
+            date: today(),
+            entityType: 'Salary structure',
+            entityName: values.name.trim(),
+            action: 'Created',
+            details: 'Salary structure created.',
+          },
+          ...(current.masterHistory || []),
+        ],
         structures: [
           ...current.structures,
           {
@@ -226,10 +248,116 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
       }),
       'Salary structure created',
     )
+  const saveStructure = (structureId, values) => {
+    const existing = dataRef.current.structures.find((item) => item.id === structureId)
+    if (!existing) return notify('Salary structure record not found.')
+    if (
+      dataRef.current.structures.some(
+        (item) =>
+          item.id !== structureId && item.name.toLowerCase() === values.name.trim().toLowerCase(),
+      )
+    )
+      return notify('A salary structure with this name already exists.')
+    const basicPercent = Number(values.basicPercent)
+    if (
+      !values.name.trim() ||
+      !Number.isFinite(basicPercent) ||
+      basicPercent < 1 ||
+      basicPercent > 100
+    )
+      return notify('Enter a structure name and a basic-pay percentage from 1 to 100.')
+    const updateComponents = (items, name, amount) => {
+      const trimmed = name.trim()
+      if (!items.length)
+        return trimmed ? [{ name: trimmed, type: 'Fixed', amount: Number(amount) || 0 }] : []
+      return trimmed
+        ? [{ ...items[0], name: trimmed, amount: Number(amount) || 0 }, ...items.slice(1)]
+        : items.slice(1)
+    }
+    return updateData(
+      (current) => ({
+        ...current,
+        structures: current.structures.map((item) =>
+          item.id === structureId
+            ? {
+                ...item,
+                name: values.name.trim(),
+                basicPercent,
+                allowances: updateComponents(
+                  item.allowances || [],
+                  values.allowanceName,
+                  values.allowanceAmount,
+                ),
+                deductions: updateComponents(
+                  item.deductions || [],
+                  values.deductionName,
+                  values.deductionAmount,
+                ),
+              }
+            : item,
+        ),
+        masterHistory: [
+          {
+            id: idFor('PMH'),
+            date: today(),
+            entityType: 'Salary structure',
+            entityName: existing.name,
+            action: 'Updated',
+            details:
+              'Structure name, basic-pay percentage, and primary recurring components updated; additional components retained.',
+          },
+          ...(current.masterHistory || []),
+        ],
+      }),
+      'Salary structure changes saved',
+    )
+  }
+  const toggleStructureStatus = (structureId) => {
+    const structure = dataRef.current.structures.find((item) => item.id === structureId)
+    if (!structure) return notify('Salary structure record not found.')
+    const currentStatus = structure.status || 'Active'
+    const status = currentStatus === 'Active' ? 'Inactive' : 'Active'
+    const assigned = dataRef.current.assignments.some(
+      (item) => item.structureId === structureId && item.status !== 'Inactive',
+    )
+    if (status === 'Inactive' && assigned)
+      return notify('Reassign employees before deactivating this salary structure.')
+    return updateData(
+      (current) => ({
+        ...current,
+        structures: current.structures.map((item) =>
+          item.id === structureId ? { ...item, status } : item,
+        ),
+        masterHistory: [
+          {
+            id: idFor('PMH'),
+            date: today(),
+            entityType: 'Salary structure',
+            entityName: structure.name,
+            action: status === 'Active' ? 'Reactivated' : 'Deactivated',
+            details: `Status changed from ${currentStatus} to ${status}.`,
+          },
+          ...(current.masterHistory || []),
+        ],
+      }),
+      `Salary structure ${status.toLowerCase()}`,
+    )
+  }
   const createComponent = (values) =>
     updateData(
       (current) => ({
         ...current,
+        masterHistory: [
+          {
+            id: idFor('PMH'),
+            date: today(),
+            entityType: 'Payroll component',
+            entityName: values.name.trim(),
+            action: 'Created',
+            details: 'Payroll component created.',
+          },
+          ...(current.masterHistory || []),
+        ],
         components: [
           ...current.components,
           { ...values, id: idFor('PC'), amount: Number(values.amount), status: 'Active' },
@@ -237,7 +365,74 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
       }),
       'Payroll component created',
     )
+  const saveComponent = (componentId, values) => {
+    const existing = dataRef.current.components.find((item) => item.id === componentId)
+    if (!existing) return notify('Payroll component record not found.')
+    if (
+      dataRef.current.components.some(
+        (item) =>
+          item.id !== componentId && item.name.toLowerCase() === values.name.trim().toLowerCase(),
+      )
+    )
+      return notify('A payroll component with this name already exists.')
+    if (!values.name.trim() || !Number.isFinite(Number(values.amount)) || Number(values.amount) < 0)
+      return notify('Enter a component name and a non-negative amount or rate.')
+    return updateData(
+      (current) => ({
+        ...current,
+        components: current.components.map((item) =>
+          item.id === componentId
+            ? { ...item, ...values, name: values.name.trim(), amount: Number(values.amount) }
+            : item,
+        ),
+        masterHistory: [
+          {
+            id: idFor('PMH'),
+            date: today(),
+            entityType: 'Payroll component',
+            entityName: existing.name,
+            action: 'Updated',
+            details: 'Component name, calculation, amount/rate, and tax treatment updated.',
+          },
+          ...(current.masterHistory || []),
+        ],
+      }),
+      'Payroll component changes saved',
+    )
+  }
+  const toggleComponentStatus = (componentId) => {
+    const component = dataRef.current.components.find((item) => item.id === componentId)
+    if (!component) return notify('Payroll component record not found.')
+    const currentStatus = component.status || 'Active'
+    const status = currentStatus === 'Active' ? 'Inactive' : 'Active'
+    return updateData(
+      (current) => ({
+        ...current,
+        components: current.components.map((item) =>
+          item.id === componentId ? { ...item, status } : item,
+        ),
+        masterHistory: [
+          {
+            id: idFor('PMH'),
+            date: today(),
+            entityType: 'Payroll component',
+            entityName: component.name,
+            action: status === 'Active' ? 'Reactivated' : 'Deactivated',
+            details: `Status changed from ${currentStatus} to ${status}; existing salary structures and payroll remain unchanged.`,
+          },
+          ...(current.masterHistory || []),
+        ],
+      }),
+      `Payroll component ${status.toLowerCase()}`,
+    )
+  }
   const saveAssignment = (values) => {
+    if (
+      !dataRef.current.structures.some(
+        (item) => item.id === values.structureId && item.status === 'Active',
+      )
+    )
+      return notify('Choose an active salary structure.')
     const duplicate = data.assignments.find((item) => item.employeeId === values.employeeId)
     return updateData((current) => {
       const assignment = {
@@ -275,6 +470,7 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
       return notify('Only an open payroll period can be processed.')
     if (data.batches.some((item) => item.periodId === periodId))
       return notify('A payroll batch already exists for this period.')
+    const payrollBasis = summarizePayrollBasis(periodId, employees)
     const slips = employees.map((employee) =>
       calculateSalary(
         employee,
@@ -297,6 +493,7 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
       net: slips.reduce((sum, item) => sum + item.net, 0),
       employeeCount: slips.length,
       createdAt: today(),
+      basis: payrollBasis,
     }
     if (
       updateData(
@@ -368,44 +565,22 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
         }),
         recoveries: [...recoveries, ...current.recoveries],
       }),
-      'Payroll finalized. Salary payments are now ready to process.',
+      'Payroll finalized. Payment instructions can now be recorded; no bank transfer is executed here.',
     )
   }
   const processPayments = (batchId) => {
     const batch = data.batches.find((item) => item.id === batchId)
     if (!batch || batch.status !== 'Finalized')
       return notify('Finalize the approved payroll batch before processing payments.')
-    const pending = batch.payslips.filter(
-      (slip) =>
-        !data.payments.some(
-          (payment) => payment.batchId === batchId && payment.employeeId === slip.employeeId,
-        ),
-    )
-    if (!pending.length) return notify('All salaries in this batch have already been paid.')
-    const payments = pending.map((slip) => ({
-      id: idFor('PM'),
-      batchId,
-      periodId: batch.periodId,
-      employeeId: slip.employeeId,
-      employeeName: slip.employeeName,
-      amount: slip.net,
-      method: 'Bank transfer',
-      reference: `BANK-${batch.periodId.replace('-', '')}-${slip.employeeId}`,
-      date: today(),
-      status: 'Paid',
-    }))
+    const payments = buildPaymentInstructions(batch, data.payments, () => idFor('PM'), today())
+    if (!payments.length)
+      return notify('Payment instructions already exist for every employee in this batch.')
     updateData(
       (current) => ({
         ...current,
         payments: [...payments, ...current.payments],
-        batches: current.batches.map((item) =>
-          item.id === batchId ? { ...item, status: 'Paid', paidAt: today() } : item,
-        ),
-        periods: current.periods.map((item) =>
-          item.id === batch.periodId ? { ...item, status: 'Paid' } : item,
-        ),
       }),
-      `${payments.length} salary payment(s) recorded`,
+      `${payments.length} payment instruction(s) recorded locally; bank settlement is not confirmed`,
     )
   }
   const requestAdvance = (values) =>
@@ -474,7 +649,17 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
     periodName,
     updateData,
     createStructure,
+    saveStructure,
+    editingStructure: data.structures.find((item) => item.id === editingStructureId),
+    setEditingStructureId,
+    editStructure: (structureId) => {
+      setEditingStructureId(structureId)
+      onNavigate('Create Salary Structure')
+    },
+    toggleStructureStatus,
     createComponent,
+    saveComponent,
+    toggleComponentStatus,
     saveAssignment,
     createPeriod,
     generatePayroll,
@@ -496,7 +681,12 @@ function PayrollModule({ page, employees: sourceEmployees, onNotify, onNavigate 
       content = <SalaryStructures {...pageProps} />
       break
     case 'Create Salary Structure':
-      content = <CreateSalaryStructure {...pageProps} />
+      content = (
+        <CreateSalaryStructure
+          key={pageProps.editingStructure?.id || 'new-structure'}
+          {...pageProps}
+        />
+      )
       break
     case 'Allowances & Deductions':
       content = <AllowancesDeductions {...pageProps} />

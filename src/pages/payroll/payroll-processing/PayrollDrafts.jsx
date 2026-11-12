@@ -58,6 +58,7 @@ export default function BatchListPage({
             'Gross earnings',
             'Deductions',
             'Net payable',
+            'Run basis',
             'Created',
             'Status',
             ...(action ? ['Action'] : []),
@@ -74,6 +75,12 @@ export default function BatchListPage({
               <td>{money(batch.deductions)}</td>
               <td>
                 <b>{money(batch.net)}</b>
+              </td>
+              <td>
+                <small className="pr-cell-sub">
+                  {batch.basis?.calculationPolicy ||
+                    'HR attendance/leave inputs excluded pending policy confirmation'}
+                </small>
               </td>
               <td>{batch.createdAt}</td>
               <td>

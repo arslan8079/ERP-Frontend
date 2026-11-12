@@ -1,7 +1,13 @@
 import { Info, Plus, Building2, ArrowLeft, MapPin, Users, Power } from 'lucide-react'
 import fieldBanner from '../../../field-banner.svg'
 
-export default function BranchDetailsPage({ branch, onNavigate, onNotify, setBranches }) {
+export default function BranchDetailsPage({
+  branch,
+  onNavigate,
+  onNotify,
+  setBranches,
+  onSelectBranch,
+}) {
   if (!branch)
     return (
       <div className="branch-list-page">
@@ -39,14 +45,26 @@ export default function BranchDetailsPage({ branch, onNavigate, onNotify, setBra
             <p>View company branch information</p>
           </div>
         </div>
-        <button
-          type="button"
-          className="branch-back-button"
-          onClick={() => onNavigate('Branch List')}
-        >
-          <ArrowLeft size={16} />
-          Branch List
-        </button>
+        <div className="branch-header-actions">
+          <button
+            type="button"
+            className="branch-secondary-button"
+            onClick={() => {
+              onSelectBranch?.(branch.code)
+              onNavigate('Edit Branch')
+            }}
+          >
+            Edit Branch
+          </button>
+          <button
+            type="button"
+            className="branch-back-button"
+            onClick={() => onNavigate('Branch List')}
+          >
+            <ArrowLeft size={16} />
+            Branch List
+          </button>
+        </div>
       </header>
       <div className="branch-details-content">
         <section className="branch-detail-summary">

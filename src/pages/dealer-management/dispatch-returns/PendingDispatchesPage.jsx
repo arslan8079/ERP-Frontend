@@ -13,6 +13,7 @@ export default function PendingDispatchesPage({ context }) {
     Truck,
     money,
     dealerName,
+    setSelectedOrderId,
   } = context
   const page = 'Pending Dispatches'
 
@@ -48,7 +49,13 @@ export default function PendingDispatchesPage({ context }) {
                   <td>{money(order.total)}</td>
                   <td>{order.paymentTerms}</td>
                   <td>
-                    <button className="dealer-mini" onClick={() => onNavigate('Create Dispatch')}>
+                    <button
+                      className="dealer-mini"
+                      onClick={() => {
+                        setSelectedOrderId(order.id)
+                        onNavigate('Create Dispatch')
+                      }}
+                    >
                       Dispatch <ArrowRight size={13} />
                     </button>
                   </td>

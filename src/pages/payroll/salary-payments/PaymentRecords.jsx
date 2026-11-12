@@ -37,7 +37,7 @@ export default function PaymentRecordsPage({ data, periodName, onNotify }) {
     <>
       <PageHeader
         title="Payment Records"
-        subtitle="Search and reconcile salary disbursements with payroll batches and bank references."
+        subtitle="Review locally recorded payment instructions. Bank settlement is not confirmed by this prototype."
         icon={ReceiptText}
         action={
           <ExportButton
@@ -51,7 +51,7 @@ export default function PaymentRecordsPage({ data, periodName, onNotify }) {
                 'Amount',
                 'Method',
                 'Reference',
-                'Date',
+                'Recorded date',
                 'Status',
               ],
               ...rows.map((item) => [
@@ -83,7 +83,7 @@ export default function PaymentRecordsPage({ data, periodName, onNotify }) {
             'Pay period',
             'Amount',
             'Method',
-            'Paid date',
+            'Recorded date',
             'Status',
           ]}
         >

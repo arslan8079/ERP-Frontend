@@ -28,13 +28,13 @@ export default function StockInGRNPage({ context }) {
         page,
         opening
           ? 'Enter a verified opening quantity against a real pesticide lot.'
-          : 'Receive supplier stock into a controlled bin with lot, expiry, and QC status.',
+          : 'Receive supplier stock into quarantine; record the receipt observation separately from inspection.',
         opening ? ClipboardList : ArrowDownLeft,
       )}
       <form className="inv-form-card" onSubmit={(event) => saveBatchReceipt(event, opening)}>
         <h2>
           {opening ? <ClipboardList size={18} /> : <PackagePlus size={18} />}
-          {opening ? 'Opening balance' : 'Goods receipt · batch and quality check'}
+          {opening ? 'Opening balance' : 'Goods receipt · receipt condition'}
         </h2>
         <div className="inv-form-grid">
           <Field label="Pesticide product" required>
@@ -84,10 +84,15 @@ export default function StockInGRNPage({ context }) {
               <Field label="Supplier / manufacturer">
                 <input name="supplier" placeholder="Approved supplier" required />
               </Field>
-              <Field label="Quality release status" required>
-                <select name="quality">
-                  <option value="Released">QC released · eligible for issue</option>
-                  <option value="Quarantine">Quarantine · hold pending QC</option>
+              <Field label="Receipt condition · intake observation only" required>
+                <select name="receiptCondition" defaultValue="" required>
+                  <option value="" disabled>
+                    Select observed condition
+                  </option>
+                  <option value="Appears intact">Packaging appears intact</option>
+                  <option value="Packaging damage observed">Packaging damage observed</option>
+                  <option value="Storage/transport concern">Storage / transport concern</option>
+                  <option value="Not assessed">Not assessed</option>
                 </select>
               </Field>
             </>
@@ -112,8 +117,9 @@ export default function StockInGRNPage({ context }) {
         </div>
         <div className="inv-form-actions">
           <span>
-            GRN updates the batch ledger immediately; select quarantine when quality release is
-            pending.
+            {opening
+              ? 'Opening stock is treated as verified at entry.'
+              : 'Every supplier GRN is quarantined until a separate QC inspection decision is recorded.'}
           </span>
           <div>
             <Button kind="secondary" onClick={() => onNavigate('Batch Register')}>

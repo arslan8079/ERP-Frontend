@@ -306,6 +306,7 @@ function seedData() {
   ]
   return {
     accounts,
+    masterHistory: [],
     entries: postedEntries,
     invoices,
     bills,
@@ -343,6 +344,7 @@ function FinanceModule({ page, onNotify, onNavigate }) {
   const dataRef = useRef(data)
   const [search, setSearch] = useState('')
   const [selectedAccountId, setSelectedAccountId] = useState('')
+  const [editingAccountId, setEditingAccountId] = useState('')
   const updateData = (updater, message) => {
     const next =
       typeof updater === 'function' ? updater(dataRef.current) : { ...dataRef.current, ...updater }
@@ -370,6 +372,17 @@ function FinanceModule({ page, onNotify, onNavigate }) {
       onNotify(
         'Add at least two valid journal lines. Each line must contain a debit or a credit, not both.',
       )
+      return false
+    }
+    if (
+      values.lines.some(
+        (line) =>
+          !dataRef.current.accounts.some(
+            (account) => account.id === line.accountId && account.status === 'Active',
+          ),
+      )
+    ) {
+      onNotify('Journal lines must use active ledger accounts.')
       return false
     }
     if (Math.abs(debit - credit) > 0.005) {
@@ -407,6 +420,15 @@ function FinanceModule({ page, onNotify, onNavigate }) {
   const postJournal = (id) => {
     const entry = data.entries.find((item) => item.id === id)
     if (!entry || entry.status !== 'Draft') return
+    if (
+      entry.lines.some(
+        (line) =>
+          !dataRef.current.accounts.some(
+            (account) => account.id === line.accountId && account.status === 'Active',
+          ),
+      )
+    )
+      return onNotify('Reactivate every ledger account used by this draft before posting.')
     updateData(
       (current) => ({
         ...current,
@@ -476,6 +498,17 @@ function FinanceModule({ page, onNotify, onNavigate }) {
       updateData(
         (current) => ({
           ...current,
+          masterHistory: [
+            {
+              id: newId('AMH'),
+              date: today(),
+              entityType: 'Account',
+              entityName: `${account.code} · ${account.name}`,
+              action: 'Created',
+              details: 'Ledger account created.',
+            },
+            ...(current.masterHistory || []),
+          ],
           accounts: [...current.accounts, account].sort((a, b) => a.code.localeCompare(b.code)),
         }),
         'Ledger account created',
@@ -484,6 +517,90 @@ function FinanceModule({ page, onNotify, onNavigate }) {
       setSelectedAccountId(account.id)
       onNavigate('Account Details')
     }
+  }
+  const saveAccount = (accountId, values) => {
+    const existing = dataRef.current.accounts.find((item) => item.id === accountId)
+    if (!existing) return onNotify('Ledger account record not found.')
+    const code = values.code.trim()
+    const name = values.name.trim()
+    if (!/^\d{3,8}$/.test(code)) return onNotify('Account code must contain 3 to 8 digits.')
+    if (
+      dataRef.current.accounts.some(
+        (item) =>
+          item.id !== accountId &&
+          (item.code === code || item.name.toLowerCase() === name.toLowerCase()),
+      )
+    )
+      return onNotify('Account code and name must be unique.')
+    const postedReference = dataRef.current.entries.some(
+      (entry) =>
+        entry.status === 'Posted' && entry.lines.some((line) => line.accountId === accountId),
+    )
+    if (
+      postedReference &&
+      (code !== existing.code ||
+        values.type !== existing.type ||
+        values.group !== existing.group ||
+        values.control !== existing.control)
+    )
+      return onNotify(
+        'Code and classification cannot change after the account is used in a posted journal.',
+      )
+    return updateData(
+      (current) => ({
+        ...current,
+        accounts: current.accounts
+          .map((item) =>
+            item.id === accountId
+              ? { ...item, ...values, code, name, status: item.status || 'Active' }
+              : item,
+          )
+          .sort((a, b) => a.code.localeCompare(b.code)),
+        masterHistory: [
+          {
+            id: newId('AMH'),
+            date: today(),
+            entityType: 'Account',
+            entityName: `${existing.code} · ${existing.name}`,
+            action: 'Updated',
+            details: 'Account details updated; ledger identity and posted history retained.',
+          },
+          ...(current.masterHistory || []),
+        ],
+      }),
+      'Ledger account changes saved',
+    )
+  }
+  const toggleAccountStatus = (accountId) => {
+    const account = dataRef.current.accounts.find((item) => item.id === accountId)
+    if (!account) return onNotify('Ledger account record not found.')
+    const currentStatus = account.status || 'Active'
+    const status = currentStatus === 'Active' ? 'Inactive' : 'Active'
+    const referenced = dataRef.current.entries.some((entry) =>
+      entry.lines.some((line) => line.accountId === accountId),
+    )
+    if (status === 'Inactive' && referenced)
+      return onNotify('An account referenced by a journal cannot be deactivated.')
+    return updateData(
+      (current) => ({
+        ...current,
+        accounts: current.accounts.map((item) =>
+          item.id === accountId ? { ...item, status } : item,
+        ),
+        masterHistory: [
+          {
+            id: newId('AMH'),
+            date: today(),
+            entityType: 'Account',
+            entityName: `${account.code} · ${account.name}`,
+            action: status === 'Active' ? 'Reactivated' : 'Deactivated',
+            details: `Status changed from ${currentStatus} to ${status}.`,
+          },
+          ...(current.masterHistory || []),
+        ],
+      }),
+      `Ledger account ${status.toLowerCase()}`,
+    )
   }
   const createBill = (values) => {
     const bill = {
@@ -756,51 +873,76 @@ function FinanceModule({ page, onNotify, onNavigate }) {
   }
   const createReconciliation = (values) => {
     const statement = Number(values.statementBalance)
-    const book = accountNet(data, values.accountId)
+    const book = accountNet(data, values.accountId, `${values.periodId}-31`)
     const ledgerLines = data.entries
       .filter((entry) => entry.status === 'Posted' && entry.date.slice(0, 7) === values.periodId)
       .flatMap((entry) => entry.lines.map((line, index) => ({ ...line, entry, lineIndex: index })))
       .filter((line) => line.accountId === values.accountId)
-    const selected = new Set(values.matchedKeys)
+    const selected = new Set(values.matchedKeys || [])
     const matched = ledgerLines.filter((line) => selected.has(`${line.entry.id}:${line.lineIndex}`))
     const uncleared = ledgerLines.filter((line) => !line.cleared)
     const allMatched = uncleared.every((line) => selected.has(`${line.entry.id}:${line.lineIndex}`))
+    const difference = statement - book
+    const status = values.finalize
+      ? Math.abs(difference) < 0.01 && allMatched
+        ? 'Reconciled'
+        : 'In Progress'
+      : 'In Progress'
     const reconcile = {
-      id: newId('REC'),
+      id: values.resumeId || newId('REC'),
       accountId: values.accountId,
       periodId: values.periodId,
       statementBalance: statement,
       bookBalance: book,
-      difference: statement - book,
+      difference,
       matched: matched.length,
-      status: Math.abs(statement - book) < 0.01 && allMatched ? 'Reconciled' : 'In Progress',
+      status,
       date: today(),
       matchedKeys: [...selected],
     }
-    if (reconcile.status === 'Reconciled') {
-      updateData(
-        (current) => ({
-          ...current,
-          entries: current.entries.map((entry) =>
-            entry.status !== 'Posted'
-              ? entry
-              : {
-                  ...entry,
-                  lines: entry.lines.map((line, index) =>
-                    selected.has(`${entry.id}:${index}`) ? { ...line, cleared: true } : line,
-                  ),
-                },
-          ),
-          reconciliations: [reconcile, ...current.reconciliations],
-        }),
-        'Bank reconciliation completed',
+    if (values.finalize && (Math.abs(difference) > 0.01 || !allMatched)) {
+      onNotify(
+        'The reconciliation is still out of balance or has unmatched ledger lines. Continue matching before completing it.',
       )
-    } else
-      updateData(
-        (current) => ({ ...current, reconciliations: [reconcile, ...current.reconciliations] }),
-        `Reconciliation saved with a ${money(Math.abs(reconcile.difference))} difference`,
-      )
+      return false
+    }
+    const didSave = updateData(
+      (current) => ({
+        ...current,
+        entries:
+          status === 'Reconciled'
+            ? current.entries.map((entry) =>
+                entry.status !== 'Posted'
+                  ? entry
+                  : {
+                      ...entry,
+                      lines: entry.lines.map((line, index) =>
+                        selected.has(`${entry.id}:${index}`) ? { ...line, cleared: true } : line,
+                      ),
+                    },
+              )
+            : current.entries,
+        reconciliations: current.reconciliations.some((item) => item.id === reconcile.id)
+          ? current.reconciliations.map((item) =>
+              item.id === reconcile.id ? { ...item, ...reconcile } : item,
+            )
+          : [reconcile, ...current.reconciliations],
+      }),
+      status === 'Reconciled'
+        ? 'Bank reconciliation completed'
+        : `Reconciliation saved with a ${money(Math.abs(reconcile.difference))} difference`,
+    )
+    return didSave ? reconcile.id : false
   }
+  const editingAccount = data.accounts.find((item) => item.id === editingAccountId)
+  const accountClassificationLocked = Boolean(
+    editingAccount &&
+    data.entries.some(
+      (entry) =>
+        entry.status === 'Posted' &&
+        entry.lines.some((line) => line.accountId === editingAccount.id),
+    ),
+  )
   const props = {
     data,
     search,
@@ -812,6 +954,15 @@ function FinanceModule({ page, onNotify, onNavigate }) {
     postJournal,
     reverseJournal,
     createAccount,
+    saveAccount,
+    editingAccount,
+    setEditingAccountId,
+    accountClassificationLocked,
+    editAccount: (accountId) => {
+      setEditingAccountId(accountId)
+      onNavigate('Create Ledger Account')
+    },
+    toggleAccountStatus,
     createBill,
     createInvoice,
     receivePayment,
@@ -825,7 +976,9 @@ function FinanceModule({ page, onNotify, onNavigate }) {
   const pageComponents = {
     'Finance Dashboard': <FinanceDashboard {...props} />,
     'Account Groups': <AccountGroupsPage {...props} />,
-    'Create Ledger Account': <AccountFormPage {...props} />,
+    'Create Ledger Account': (
+      <AccountFormPage key={editingAccount?.id || 'new-account'} {...props} />
+    ),
     'Account Directory': <AccountDirectoryPage {...props} />,
     'Account Details': <AccountDetailsPage {...props} />,
     'Create Journal Entry': <JournalFormPage {...props} />,

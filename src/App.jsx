@@ -490,6 +490,14 @@ function App() {
     openTab('Branch List')
     notify('Branch created successfully')
   }
+  const updateBranch = (code, updates) => {
+    setBranches((current) =>
+      current.map((branch) => (branch.code === code ? { ...branch, ...updates } : branch)),
+    )
+    setSelectedBranchCode(code)
+    openTab('Branch Details')
+    notify('Branch updated successfully')
+  }
   const createDepartment = (department) => {
     const nextNumber =
       departments.reduce(
@@ -1354,6 +1362,7 @@ function App() {
               branches={branches}
               setBranches={setBranches}
               onCreateBranch={createBranch}
+              onUpdateBranch={updateBranch}
               selectedBranchCode={selectedBranchCode}
               onSelectBranch={setSelectedBranchCode}
               departments={departments}
@@ -1411,16 +1420,7 @@ function App() {
         <span className="version">v1.0.0</span>
       </footer>
 
-      {modal && (
-        <ActionModal
-          name={modal}
-          onClose={() => setModal('')}
-          onSubmit={() => {
-            setModal('')
-            notify(`${modal} created successfully`)
-          }}
-        />
-      )}
+      {modal && <ActionModal name={modal} onClose={() => setModal('')} />}
       {toast && (
         <div className="toast">
           <Check size={17} />
@@ -1910,6 +1910,7 @@ function ModulePage({
   branches,
   setBranches,
   onCreateBranch,
+  onUpdateBranch,
   selectedBranchCode,
   onSelectBranch,
   departments,
@@ -1965,12 +1966,18 @@ function ModulePage({
         onSelectBranch={onSelectBranch}
       />
     )
-  if (name === 'Create Branch')
+  if (name === 'Create Branch' || name === 'Edit Branch')
     return (
       <CreateBranchPage
         branches={branches}
         onNavigate={onNavigate}
         onCreateBranch={onCreateBranch}
+        onUpdateBranch={onUpdateBranch}
+        branch={
+          name === 'Edit Branch'
+            ? branches.find((item) => item.code === selectedBranchCode) || branches[0]
+            : null
+        }
       />
     )
   if (name === 'Branch Details')
@@ -1980,6 +1987,7 @@ function ModulePage({
         onNavigate={onNavigate}
         onNotify={onNotify}
         setBranches={setBranches}
+        onSelectBranch={onSelectBranch}
       />
     )
   if (name === 'Branch Settings')
@@ -3899,67 +3907,7 @@ function SystemStatusPill({ status }) {
   )
 }
 
-function ActionModal({ name, onClose, onSubmit }) {
-  const isInfo = ![
-    'New Order',
-    'Purchase',
-    'Production',
-    'Goods Receipt',
-    'Dispatch',
-    'Payment',
-    'Receipt',
-    'Stock View',
-    'Dealer List',
-    'Reports',
-    'Add Dealer',
-    'Stock Inquiry',
-    'Add Company',
-    'Add Branch',
-    'Create User',
-    'Manage Roles',
-    'Approval Setup',
-    'Workflow Settings',
-    'File menu',
-  ].some((prefix) => name.startsWith(prefix))
-  const primaryLabel = name.includes('Company')
-    ? 'Company name'
-    : name.includes('Branch')
-      ? 'Branch name'
-      : name.includes('User')
-        ? 'Full name'
-        : name.includes('Role')
-          ? 'Role name'
-          : name.includes('Approval')
-            ? 'Approval type'
-            : name.includes('Workflow')
-              ? 'Workflow name'
-              : name.includes('Dealer')
-                ? 'Dealer name'
-                : name.includes('Purchase')
-                  ? 'Supplier'
-                  : 'Customer / dealer'
-  const referenceLabel = name.includes('User')
-    ? 'Username'
-    : name.includes('Company')
-      ? 'Registration No.'
-      : name.includes('Branch')
-        ? 'Branch code'
-        : name.includes('Role')
-          ? 'Permissions'
-          : name.includes('Approval')
-            ? 'Approver'
-            : 'Reference'
-  const quantityLabel = name.includes('User')
-    ? 'Role'
-    : name.includes('Branch')
-      ? 'Location'
-      : 'Amount / Quantity'
-  const submitLabel = name.startsWith('Create ')
-    ? name
-    : name.startsWith('Add ')
-      ? `Create ${name.slice(4)}`
-      : `Create ${name.replace(/^New /, '')}`
-  const hasQuantity = quantityLabel === 'Amount / Quantity'
+function ActionModal({ name, onClose }) {
   return (
     <div
       className="modal-backdrop"
@@ -3982,64 +3930,21 @@ function ActionModal({ name, onClose, onSubmit }) {
             <X size={19} />
           </button>
         </div>
-        {isInfo ? (
-          <div className="modal-info">
-            <div className="placeholder-icon">
-              <ClipboardList size={23} />
-            </div>
-            <p>
-              <b>{name}</b>
-            </p>
-            <span>Review current records, activity, and next steps for this workspace.</span>
-            <button className="primary-button" onClick={onClose}>
-              Got it
-            </button>
+        <div className="modal-info">
+          <div className="placeholder-icon">
+            <ClipboardList size={23} />
           </div>
-        ) : (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              onSubmit()
-            }}
-          >
-            <label>
-              {primaryLabel}
-              <input required placeholder={`Enter ${primaryLabel.toLowerCase()}`} />
-            </label>
-            <div className="form-row">
-              <label>
-                {name.includes('Production') ? 'Product' : referenceLabel}
-                <input
-                  required
-                  placeholder={
-                    name.includes('Production')
-                      ? 'Select product'
-                      : `Enter ${referenceLabel.toLowerCase()}`
-                  }
-                />
-              </label>
-              <label>
-                {quantityLabel}
-                <input
-                  type={hasQuantity ? 'number' : 'text'}
-                  min={hasQuantity ? '1' : undefined}
-                  placeholder={hasQuantity ? '0' : `Enter ${quantityLabel.toLowerCase()}`}
-                />
-              </label>
-            </div>
-            <label>
-              Notes <textarea rows="3" placeholder="Add notes (optional)" />
-            </label>
-            <div className="modal-footer">
-              <button type="button" className="secondary-button" onClick={onClose}>
-                Cancel
-              </button>
-              <button type="submit" className="primary-button">
-                <Plus size={15} /> {submitLabel}
-              </button>
-            </div>
-          </form>
-        )}
+          <p>
+            <b>{name}</b>
+          </p>
+          <span>
+            This action is not connected to a task-specific workflow yet. No record has been
+            created.
+          </span>
+          <button className="primary-button" onClick={onClose}>
+            Got it
+          </button>
+        </div>
       </section>
     </div>
   )

@@ -1,5 +1,5 @@
 import { ArrowRight, FlaskConical, ShieldAlert, ClipboardList } from 'lucide-react'
-import { Button, Card, Table } from '../InventoryComponents'
+import { Button, MasterHistoryCard, Card, Table } from '../InventoryComponents'
 
 export default function BatchRegisterPage({ context }) {
   const {
@@ -91,6 +91,11 @@ export default function BatchRegisterPage({ context }) {
             {tableRows}
           </Table>
         </Card>
+        {page === 'Batch Register' && (
+          <MasterHistoryCard
+            items={(data.masterHistory || []).filter((item) => item.entityType === 'Batch')}
+          />
+        )}
       </div>
     )
   })()

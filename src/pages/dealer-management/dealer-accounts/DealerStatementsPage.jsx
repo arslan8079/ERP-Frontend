@@ -100,7 +100,7 @@ export default function DealerStatementsPage({ context }) {
               'Dealer account statement',
               ['Dealer', 'Date', 'Transaction', 'Reference', 'Debit', 'Credit', 'Balance'],
               statementRows.flatMap(({ dealer, orders, payments, returns }) => {
-                let balance = dealer.openingBalance
+                let balance = 0
                 const transactions = [
                   ...orders.map((item) => ({
                     date: item.date,
@@ -119,7 +119,7 @@ export default function DealerStatementsPage({ context }) {
                   ...returns.map((item) => ({
                     date: item.date,
                     type: 'Approved return credit',
-                    reference: item.id,
+                    reference: item.creditReference || item.id,
                     debit: 0,
                     credit: item.amount,
                   })),

@@ -605,6 +605,59 @@
   border-top: 1px solid #e8efed;
   background: #fbfdfc;
 }
+.dealer-order-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 13px;
+}
+.dealer-order-reason {
+  margin: 0 13px;
+}
+.dealer-order-amend-line {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(80px, 0.6fr) auto auto;
+  align-items: center;
+  margin-top: 8px;
+  gap: 8px;
+}
+.dealer-order-amend-line > span {
+  color: #31584e;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.dealer-order-amend-line > small {
+  grid-column: 1 / -1;
+  color: #bd554c;
+}
+.dealer-history-list {
+  display: grid;
+  padding: 0 13px 10px;
+}
+.dealer-history-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef2f1;
+  gap: 4px 12px;
+}
+.dealer-history-list b {
+  color: #31584e;
+  font-size: 10px;
+}
+.dealer-history-list span {
+  grid-column: 1 / -1;
+  color: #657f77;
+  font-size: 10px;
+}
+.dealer-history-list small {
+  grid-column: 2;
+  grid-row: 1;
+  color: #879994;
+  font-size: 9px;
+  text-align: right;
+}
 
 .dealer-verification-banner {
   display: flex;
@@ -822,6 +875,21 @@
   }
   .dealer-form-grid {
     grid-template-columns: 1fr;
+  }
+  .dealer-order-amend-line {
+    grid-template-columns: minmax(0, 1fr) minmax(70px, 0.4fr);
+  }
+  .dealer-order-amend-line > span,
+  .dealer-order-amend-line > button {
+    grid-column: span 1;
+  }
+  .dealer-history-list > div {
+    grid-template-columns: 1fr;
+  }
+  .dealer-history-list small {
+    grid-column: 1;
+    grid-row: auto;
+    text-align: left;
   }
   .dealer-field.wide {
     grid-column: auto;

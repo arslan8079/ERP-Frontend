@@ -312,7 +312,7 @@ export default function PayrollReportPage({
         </Card>
       ) : page === 'Payment Summary' ? (
         <Card
-          title={`Disbursements · ${data.payments.filter((item) => item.periodId === periodId).length}`}
+          title={`Payment instructions · ${data.payments.filter((item) => item.periodId === periodId).length}`}
           icon={Landmark}
         >
           <Table headers={report.headers}>

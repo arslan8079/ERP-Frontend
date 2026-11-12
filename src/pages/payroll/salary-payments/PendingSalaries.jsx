@@ -28,6 +28,13 @@ const {
 export default function PendingSalariesPage({ data, periodName, onNavigate }) {
   const batches = data.batches.filter((item) => item.status === 'Finalized')
   const due = batches.reduce((sum, item) => sum + item.net, 0)
+  const paymentStatus = (batch) => {
+    const count = data.payments.filter((payment) => payment.batchId === batch.id).length
+    if (!count) return 'Unpaid'
+    return count < batch.employeeCount
+      ? `${count} instruction(s) recorded · incomplete`
+      : 'Pending bank confirmation'
+  }
   return (
     <>
       <PageHeader
@@ -37,7 +44,7 @@ export default function PendingSalariesPage({ data, periodName, onNavigate }) {
         action={
           <Button onClick={() => onNavigate('Process Payments')}>
             <Banknote size={15} />
-            Process payments
+            Record instructions
           </Button>
         }
       />
@@ -80,11 +87,11 @@ export default function PendingSalariesPage({ data, periodName, onNavigate }) {
               </td>
               <td>{batch.finalizedAt}</td>
               <td>
-                <Status>Unpaid</Status>
+                <Status>{paymentStatus(batch)}</Status>
               </td>
               <td>
                 <button className="pr-link" onClick={() => onNavigate('Process Payments')}>
-                  Pay salaries <ChevronRight size={14} />
+                  Record instructions <ChevronRight size={14} />
                 </button>
               </td>
             </tr>

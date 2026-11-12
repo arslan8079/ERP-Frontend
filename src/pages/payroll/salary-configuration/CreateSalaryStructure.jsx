@@ -26,27 +26,50 @@ const {
   downloadCsv,
 } = Shared
 
-export default function CreateStructurePage({ createStructure, data, onNotify, onNavigate }) {
-  const [form, setForm] = useState({
-    name: '',
-    basicPercent: 70,
-    allowanceName: 'House allowance',
-    allowanceAmount: 0,
-    deductionName: 'Income tax',
-    deductionAmount: 0,
-  })
+export default function CreateStructurePage({
+  createStructure,
+  saveStructure,
+  editingStructure,
+  setEditingStructureId,
+  data,
+  onNotify,
+  onNavigate,
+}) {
+  const [form, setForm] = useState(() => ({
+    name: editingStructure?.name || '',
+    basicPercent: editingStructure?.basicPercent ?? 70,
+    allowanceName: editingStructure?.allowances?.[0]?.name || 'House allowance',
+    allowanceAmount: editingStructure?.allowances?.[0]?.amount ?? 0,
+    deductionName: editingStructure?.deductions?.[0]?.name || 'Income tax',
+    deductionAmount: editingStructure?.deductions?.[0]?.amount ?? 0,
+  }))
   const submit = (event) => {
     event.preventDefault()
-    if (data.structures.some((item) => item.name.toLowerCase() === form.name.trim().toLowerCase()))
+    if (
+      data.structures.some(
+        (item) =>
+          item.id !== editingStructure?.id &&
+          item.name.toLowerCase() === form.name.trim().toLowerCase(),
+      )
+    )
       return onNotify('A salary structure with this name already exists.')
-    createStructure(form)
-    onNavigate('Salary Structures')
+    const saved = editingStructure
+      ? saveStructure(editingStructure.id, form)
+      : createStructure(form)
+    if (saved) {
+      setEditingStructureId('')
+      onNavigate('Salary Structures')
+    }
   }
   return (
     <>
       <PageHeader
-        title="Create Salary Structure"
-        subtitle="Define the salary basis and recurring earnings and deductions for a staff category."
+        title={editingStructure ? 'Edit Salary Structure' : 'Create Salary Structure'}
+        subtitle={
+          editingStructure
+            ? 'Update the reusable salary template while retaining its stable ID and payroll history.'
+            : 'Define the salary basis and recurring earnings and deductions for a staff category.'
+        }
         icon={Plus}
         action={
           <Button kind="secondary" onClick={() => onNavigate('Salary Structures')}>
@@ -54,7 +77,11 @@ export default function CreateStructurePage({ createStructure, data, onNotify, o
           </Button>
         }
       />
-      <form className="pr-form-card" onSubmit={submit}>
+      <form
+        className="pr-form-card"
+        key={editingStructure?.id || 'new-structure'}
+        onSubmit={submit}
+      >
         <h2>
           <BadgeDollarSign size={18} />
           Compensation template
@@ -111,10 +138,25 @@ export default function CreateStructurePage({ createStructure, data, onNotify, o
           </Field>
         </div>
         <div className="pr-form-actions">
-          <span>Assign the saved structure to employees before generating a payroll batch.</span>
+          <span>
+            {editingStructure
+              ? 'Existing payroll batches retain their recorded values; additional components are preserved.'
+              : 'Assign the saved structure to employees before generating a payroll batch.'}
+          </span>
+          {editingStructure && (
+            <Button
+              kind="secondary"
+              onClick={() => {
+                setEditingStructureId('')
+                onNavigate('Salary Structures')
+              }}
+            >
+              Cancel
+            </Button>
+          )}
           <Button type="submit">
             <Check size={15} />
-            Save structure
+            {editingStructure ? 'Save changes' : 'Save structure'}
           </Button>
         </div>
       </form>

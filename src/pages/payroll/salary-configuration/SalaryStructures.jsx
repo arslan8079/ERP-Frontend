@@ -33,7 +33,12 @@ const {
   downloadCsv,
 } = Shared
 
-export default function SalaryStructuresPage({ data, onNavigate }) {
+export default function SalaryStructuresPage({
+  data,
+  onNavigate,
+  editStructure,
+  toggleStructureStatus,
+}) {
   return (
     <>
       <PageHeader
@@ -91,10 +96,31 @@ export default function SalaryStructuresPage({ data, onNavigate }) {
                   >
                     Assign <ChevronRight size={14} />
                   </button>
+                  <button className="pr-link" onClick={() => editStructure(item.id)}>
+                    Edit
+                  </button>
+                  <button className="pr-link" onClick={() => toggleStructureStatus(item.id)}>
+                    {item.status === 'Active' ? 'Deactivate' : 'Reactivate'}
+                  </button>
                 </td>
               </tr>
             )
           })}
+        </Table>
+      </Card>
+      <Card title="Salary structure change history" icon={ListChecks}>
+        <Table headers={['Date', 'Structure', 'Change', 'Details']}>
+          {(data.masterHistory || [])
+            .filter((item) => item.entityType === 'Salary structure')
+            .slice(0, 20)
+            .map((item) => (
+              <tr key={item.id}>
+                <td>{item.date}</td>
+                <td>{item.entityName}</td>
+                <td>{item.action}</td>
+                <td>{item.details}</td>
+              </tr>
+            ))}
         </Table>
       </Card>
       <Callout
